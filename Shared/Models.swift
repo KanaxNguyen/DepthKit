@@ -8,10 +8,9 @@ enum MeasureMode: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .distance: "Distance"
-        case .range: "Range"
+        case .distance: "Two Points"
+        case .range, .near: "From iPhone"
         case .box: "Box"
-        case .near: "Near"
         case .level: "Level"
         }
     }
@@ -96,7 +95,7 @@ enum MeasureFormat {
         switch record.mode {
         case .box: return "Your last box measured \(value)."
         case .level: return "Your last level reading was \(value)."
-        default: return "Your last \(record.mode.title.lowercased()) measurement was \(value)."
+        default: return "Your last distance measurement was \(value)."
         }
     }
 }

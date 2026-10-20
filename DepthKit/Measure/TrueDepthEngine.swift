@@ -50,7 +50,7 @@ final class TrueDepthEngine: NSObject, AVCaptureDepthDataOutputDelegate {
             return
         }
         session.addOutput(output)
-        output.isFilteringEnabled = true
+        output.isFilteringEnabled = DevSettings.trueDepthFiltering
         output.setDelegate(self, callbackQueue: queue)
         output.connection(with: .depthData)?.isEnabled = true
 

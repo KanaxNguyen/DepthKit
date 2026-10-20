@@ -91,14 +91,14 @@ struct Crosshair: View {
     }
 }
 
-/// Camera-style mode switcher.
+/// Camera-style tool switcher.
 struct ModeSwitcher: View {
-    @Binding var selection: MeasureMode
+    @Binding var selection: MeasureTool
     @Namespace private var namespace
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(MeasureMode.allCases) { mode in
+            ForEach(MeasureTool.allCases) { mode in
                 Button {
                     withAnimation(.snappy) { selection = mode }
                 } label: {
@@ -108,7 +108,7 @@ struct ModeSwitcher: View {
                             .frame(height: 22)
                         Text(mode.title).font(.caption2.weight(.semibold))
                     }
-                    .frame(width: 62, height: 48)
+                    .frame(width: 84, height: 48)
                     .foregroundStyle(selection == mode ? Color.white : Color.primary)
                     .background {
                         if selection == mode {

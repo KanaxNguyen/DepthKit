@@ -154,12 +154,12 @@ private struct QuickStart: View {
         Link(destination: URL(string: "depthkit://measure/\(mode.rawValue)")!) {
             VStack(spacing: 4) {
                 Image(systemName: mode.systemImage).font(.title3)
-                Text(mode.title).font(.caption2.weight(.semibold))
+                Text(mode == .box ? "Box" : "Distance").font(.caption2.weight(.semibold))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .accessibilityLabel("Measure \(mode.title)")
+        .accessibilityLabel(mode == .box ? "Measure a box" : "Measure distance")
     }
 }
 

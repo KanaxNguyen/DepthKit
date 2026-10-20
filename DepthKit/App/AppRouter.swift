@@ -5,14 +5,74 @@ enum AppTab: Hashable {
     case measure, history, settings
 }
 
-/// Which tab and measuring mode are showing. Driven by taps, deep links, Siri and controls.
+/// The three tools in the mode switcher. Distance covers every "how far" measurement.
+enum MeasureTool: String, CaseIterable, Identifiable {
+    case distance, box, level
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .distance: "Distance"
+        case .box: "Box"
+        case .level: "Level"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .distance: "ruler"
+        case .box: "shippingbox"
+        case .level: "level"
+        }
+    }
+}
+
+enum DistanceMethod: String, CaseIterable, Identifiable {
+    /// Between two points picked in the scene (LiDAR).
+    case twoPoints
+    /// From the iPhone to whatever is under the crosshair (LiDAR or TrueDepth).
+    case fromPhone
+
+    var id: String { rawValue }
+    var title: String { self == .twoPoints ? "Two Points" : "From iPhone" }
+}
+
+enum DistanceSensor {
+    case lidar, trueDepth
+}
+
+/// Which tab and measuring tool are showing. Driven by taps, deep links, Siri and controls.
 @Observable
 final class AppRouter {
     var tab: AppTab = .measure
-    var mode: MeasureMode = .distance
+    var tool: MeasureTool = .distance
+    var distanceMethod: DistanceMethod = .twoPoints
+    var distanceSensor: DistanceSensor = ARMeasureEngine.isSupported ? .lidar : .trueDepth
+
+    /// The concrete measuring mode, which is also the kind of record it saves.
+    var mode: MeasureMode {
+        switch tool {
+        case .box: .box
+        case .level: .level
+        case .distance:
+            distanceMethod == .twoPoints ? .distance : (distanceSensor == .lidar ? .range : .near)
+        }
+    }
 
     func open(_ mode: MeasureMode) {
-        self.mode = mode
+        switch mode {
+        case .distance:
+            tool = .distance; distanceMethod = .twoPoints
+        case .range:
+            tool = .distance; distanceMethod = .fromPhone; distanceSensor = .lidar
+        case .near:
+            tool = .distance; distanceMethod = .fromPhone; distanceSensor = .trueDepth
+        case .box:
+            tool = .box
+        case .level:
+            tool = .level
+        }
         tab = .measure
     }
 

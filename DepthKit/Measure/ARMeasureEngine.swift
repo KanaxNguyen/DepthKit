@@ -28,16 +28,25 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
     var isCapturingBox = false
     var boxFailed = false
 
+    // Developer tools.
+    var stats: DepthStats?
+    var debugImage: CGImage?
+    var captureMessage: String?
+
     @ObservationIgnored private var boxSamples: [BoxEstimate] = []
     @ObservationIgnored private var boxFramesTried = 0
+    @ObservationIgnored private var boxOptions = BoxEstimator.Options()
+    @ObservationIgnored private var boxFramesWanted = DevSettings.Default.boxFrames
+    @ObservationIgnored private var lastRegion: Set<Int> = []
+    @ObservationIgnored private var pendingCaptureMode: MeasureMode?
     @ObservationIgnored private var lastPublish: TimeInterval = 0
     @ObservationIgnored private var isRunning = false
+    @ObservationIgnored private let captureQueue = DispatchQueue(label: "vn.kanax.depthkit.capture")
 
     override init() {
         super.init()
         arView.session.delegate = self
         arView.renderOptions.insert(.disableMotionBlur)
-        arView.environment.sceneUnderstanding.options = []
     }
 
     func start() {
@@ -61,6 +70,7 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
         box = nil
         screenBox = []
         boxSamples = []
+        lastRegion = []
         isCapturingBox = false
         boxFailed = false
     }
@@ -87,7 +97,16 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
         boxSamples = []
         boxFramesTried = 0
         boxFailed = false
+        boxOptions = DevSettings.boxOptions
+        boxFramesWanted = max(1, DevSettings.boxFrames)
         isCapturingBox = true
+    }
+
+    // MARK: Dataset capture
+
+    /// Saves the next frame as an RGB + depth sample.
+    func captureSample(mode: MeasureMode) {
+        pendingCaptureMode = mode
     }
 
     // MARK: ARSessionDelegate
@@ -95,6 +114,10 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         updateFloor(frame)
         if isCapturingBox { sampleBox(frame) }
+        if let mode = pendingCaptureMode {
+            pendingCaptureMode = nil
+            saveSample(frame, mode: mode)
+        }
 
         guard frame.timestamp - lastPublish > 0.05 else { return }
         lastPublish = frame.timestamp
@@ -104,11 +127,17 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
         if let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth {
             let depth = PixelBuffers.floats(depthData.depthMap)
             let confidence = depthData.confidenceMap.map(PixelBuffers.bytes)
+            let window = DevSettings.readoutWindow
             centerDepth = PixelBuffers.centerMedian(depth: depth.values, width: depth.width, height: depth.height,
-                                                    confidence: confidence, minConfidence: 1)
-            let strict = PixelBuffers.centerMedian(depth: depth.values, width: depth.width, height: depth.height,
-                                                   confidence: confidence, minConfidence: 2)
-            centerIsHighConfidence = strict != nil
+                                                    confidence: confidence, minConfidence: DevSettings.readoutMinConfidence,
+                                                    window: window)
+            centerIsHighConfidence = PixelBuffers.centerMedian(depth: depth.values, width: depth.width, height: depth.height,
+                                                               confidence: confidence, minConfidence: 2, window: window) != nil
+            stats = DevSettings.showStats ? DepthStats.compute(depth: depth.values, confidence: confidence) : nil
+            debugImage = DevSettings.showHeatmap
+                ? DepthColormap.image(depth: depth.values, width: depth.width, height: depth.height,
+                                      confidence: confidence, highlight: lastRegion)
+                : nil
         }
 
         let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
@@ -134,16 +163,51 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
 
     private func sampleBox(_ frame: ARFrame) {
         boxFramesTried += 1
-        if let floorY, let depthFrame = Self.depthFrame(from: frame),
-           let estimate = BoxEstimator.estimate(depthFrame, floorY: floorY) {
-            boxSamples.append(estimate)
+        if let floorY, let depthFrame = Self.depthFrame(from: frame) {
+            let analysis = BoxEstimator.analyze(depthFrame, floorY: floorY, options: boxOptions)
+            lastRegion = Set(analysis.region)
+            if let estimate = analysis.estimate { boxSamples.append(estimate) }
         }
-        if boxSamples.count >= 12 {
+        if boxSamples.count >= boxFramesWanted {
             box = BoxEstimator.combine(boxSamples)
             isCapturingBox = false
-        } else if boxFramesTried >= 90 {
+        } else if boxFramesTried >= boxFramesWanted * 8 {
             isCapturingBox = false
             boxFailed = true
+        }
+    }
+
+    private func saveSample(_ frame: ARFrame, mode: MeasureMode) {
+        guard let data = frame.smoothedSceneDepth ?? frame.sceneDepth else {
+            captureMessage = "No depth in this frame"
+            return
+        }
+        let depth = PixelBuffers.floats(data.depthMap)
+        let confidence = data.confidenceMap.map(PixelBuffers.bytes)
+        let image = frame.camera.imageResolution
+        let k = frame.camera.intrinsics
+        let t = frame.camera.transform
+        let sample = DatasetSample(
+            timestamp: Date(), device: DatasetWriter.deviceModel, mode: mode.rawValue,
+            imageWidth: Int(image.width), imageHeight: Int(image.height),
+            depthWidth: depth.width, depthHeight: depth.height,
+            intrinsics: [k[0][0], k[0][1], k[0][2], k[1][0], k[1][1], k[1][2], k[2][0], k[2][1], k[2][2]],
+            cameraToWorld: (0..<4).flatMap { c in (0..<4).map { r in t[c][r] } },
+            floorY: floorY
+        )
+        let rgb = frame.capturedImage
+        captureMessage = "Saving…"
+        captureQueue.async { [weak self] in
+            let preview = DepthColormap.image(depth: depth.values, width: depth.width, height: depth.height, confidence: confidence)
+            let message: String
+            do {
+                try DatasetWriter.save(sample: sample, rgbJPEG: DatasetWriter.jpeg(from: rgb), depth: depth.values,
+                                       confidence: confidence, preview: preview)
+                message = "Sample saved"
+            } catch {
+                message = "Save failed: \(error.localizedDescription)"
+            }
+            DispatchQueue.main.async { self?.captureMessage = message }
         }
     }
 

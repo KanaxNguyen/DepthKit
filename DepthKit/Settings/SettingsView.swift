@@ -42,7 +42,17 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Text("DepthKit estimates sizes from depth sensors; results can be off by a centimeter or more. Check anything critical with a tape measure. Camera images are processed on device and never stored or uploaded.")
+                    NavigationLink {
+                        DeveloperView()
+                    } label: {
+                        Label("Developer", systemImage: "hammer")
+                    }
+                } footer: {
+                    Text("Tune the measuring algorithms, show depth overlays and capture RGB + depth samples.")
+                }
+
+                Section {
+                    Text("DepthKit estimates sizes from depth sensors; results can be off by a centimeter or more. Check anything critical with a tape measure. Camera images are processed on device and never uploaded. They are saved only when you capture a sample in Developer mode.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

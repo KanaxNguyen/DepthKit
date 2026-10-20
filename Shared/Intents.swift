@@ -6,15 +6,13 @@ extension Notification.Name {
 }
 
 enum MeasureModeAppEnum: String, AppEnum {
-    case distance, range, box, near, level
+    case distance, box, level
 
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Measuring Mode"
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Measuring Tool"
 
     static var caseDisplayRepresentations: [MeasureModeAppEnum: DisplayRepresentation] = [
         .distance: DisplayRepresentation(title: "Distance", image: .init(systemName: "ruler")),
-        .range: DisplayRepresentation(title: "Range", image: .init(systemName: "scope")),
         .box: DisplayRepresentation(title: "Box", image: .init(systemName: "shippingbox")),
-        .near: DisplayRepresentation(title: "Near", image: .init(systemName: "faceid")),
         .level: DisplayRepresentation(title: "Level", image: .init(systemName: "level")),
     ]
 
@@ -24,10 +22,10 @@ enum MeasureModeAppEnum: String, AppEnum {
 /// Opens the app in a measuring mode. Used by Siri, Shortcuts, Spotlight and the Control Center control.
 struct StartMeasurementIntent: AppIntent {
     static var title: LocalizedStringResource = "Start Measuring"
-    static var description = IntentDescription("Opens DepthKit in the measuring mode you choose.")
+    static var description = IntentDescription("Opens DepthKit with the measuring tool you choose.")
     static var openAppWhenRun: Bool = true
 
-    @Parameter(title: "Mode", default: .distance)
+    @Parameter(title: "Tool", default: .distance)
     var mode: MeasureModeAppEnum
 
     init() {}

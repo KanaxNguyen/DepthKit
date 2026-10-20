@@ -45,6 +45,20 @@ final class StoreAndFormatTests: XCTestCase {
         XCTAssertTrue(lines[1].contains(",range,LiDAR,2.0000,,,m,\"2.00 m\""))
     }
 
+    func testRouterMergesDistanceModesIntoOneTool() {
+        let router = AppRouter()
+        router.open(.near)
+        XCTAssertEqual(router.tool, .distance)
+        XCTAssertEqual(router.distanceMethod, .fromPhone)
+        XCTAssertEqual(router.mode, .near)
+        router.distanceSensor = .lidar
+        XCTAssertEqual(router.mode, .range)
+        router.distanceMethod = .twoPoints
+        XCTAssertEqual(router.mode, .distance)
+        router.tool = .level
+        XCTAssertEqual(router.mode, .level)
+    }
+
     func testRouterHandlesDeepLinks() {
         let router = AppRouter()
         router.tab = .settings

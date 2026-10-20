@@ -11,7 +11,7 @@ struct LiDARMeasureView: View {
         } else {
             SensorUnavailableView(
                 title: "LiDAR Not Available",
-                message: "Distance, Range and Box need an iPhone with a LiDAR Scanner (Pro models)."
+                message: "Two-point distance, back-camera distance and Box need an iPhone with a LiDAR Scanner (Pro models)."
             )
         }
     }
@@ -23,6 +23,7 @@ private struct LiDARSessionView: View {
     @Environment(HistoryModel.self) private var history
     @AppStorage(SharedSettings.unitsKey, store: AppGroup.defaults) private var units: UnitSystem = .metric
     @AppStorage(SharedSettings.divisorKey, store: AppGroup.defaults) private var divisor: Double = 5000
+    @AppStorage(DevSettings.Key.enabled, store: AppGroup.defaults) private var devEnabled = false
     @State private var engine = ARMeasureEngine()
     @State private var showSaved = false
 
@@ -31,6 +32,20 @@ private struct LiDARSessionView: View {
             ARViewContainer(engine: engine)
                 .ignoresSafeArea()
 
+            if let heatmap = engine.debugImage {
+                // The depth map is in sensor (landscape) orientation; rotate it to match the portrait camera view.
+                Color.clear
+                    .overlay {
+                        Image(decorative: heatmap, scale: 1, orientation: .right)
+                            .resizable()
+                            .scaledToFill()
+                    }
+                    .clipped()
+                    .opacity(0.6)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
+
             overlay
                 .allowsHitTesting(false)
                 .ignoresSafeArea()
@@ -38,6 +53,12 @@ private struct LiDARSessionView: View {
             Crosshair()
 
             VStack(spacing: 12) {
+                if devEnabled {
+                    DevToolbar(stats: engine.stats, centerDepth: engine.centerDepth, floorY: engine.floorY,
+                               message: engine.captureMessage) {
+                        engine.captureSample(mode: mode)
+                    }
+                }
                 if showSaved {
                     SavedToast()
                 } else if let hint {
@@ -49,7 +70,7 @@ private struct LiDARSessionView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
-            .padding(.bottom, 84)
+            .padding(.bottom, 12)
         }
         .onAppear { engine.start() }
         .onDisappear { engine.pause() }
@@ -111,11 +132,11 @@ private struct LiDARSessionView: View {
     private var readout: some View {
         switch mode {
         case .distance:
-            ReadoutCard(title: "Distance", value: engine.distanceResult.map { MeasureFormat.length($0, units: units) }) {
-                Text("LiDAR · point to point")
+            ReadoutCard(title: "Two Points", value: engine.distanceResult.map { MeasureFormat.length($0, units: units) }) {
+                Text("Back camera · LiDAR")
             }
         case .range:
-            ReadoutCard(title: "Range", value: engine.centerDepth.map { MeasureFormat.length($0, units: units) }) {
+            ReadoutCard(title: "From iPhone", value: engine.centerDepth.map { MeasureFormat.length($0, units: units) }) {
                 Label(engine.centerIsHighConfidence ? "High confidence" : "Low confidence",
                       systemImage: engine.centerIsHighConfidence ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
             }
@@ -207,4 +228,43 @@ struct ARViewContainer: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: ARView, context: Context) {}
+}
+
+/// Developer stats and the dataset capture button, shown when Developer Mode is on.
+private struct DevToolbar: View {
+    let stats: DepthStats?
+    let centerDepth: Double?
+    let floorY: Float?
+    let message: String?
+    let capture: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                if let stats {
+                    Text(String(format: "valid %.0f%%  high %.0f%%", stats.validFraction * 100, stats.highConfidenceFraction * 100))
+                    Text("range " + (stats.minDepth.map { String(format: "%.2f", $0) } ?? "–") + "–"
+                         + (stats.maxDepth.map { String(format: "%.2f m", $0) } ?? "–"))
+                }
+                Text("center " + (centerDepth.map { String(format: "%.3f m", $0) } ?? "–")
+                     + "  floor " + (floorY.map { String(format: "%.2f", $0) } ?? "–"))
+                if let message { Text(message).foregroundStyle(.secondary) }
+            }
+            .font(.caption.monospacedDigit())
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .hudBackground(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            Spacer(minLength: 0)
+
+            Button(action: capture) {
+                Image(systemName: "camera.aperture")
+                    .font(.title3.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .hudBackground(in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Capture RGB and depth sample")
+        }
+    }
 }

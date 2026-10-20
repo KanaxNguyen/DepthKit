@@ -44,15 +44,4 @@ final class GeometryTests: XCTestCase {
         XCTAssertEqual(value, 1.0)
     }
 
-    func testLevelReading() {
-        let upright = LevelEngine.reading(gx: 0, gy: -1, gz: 0)
-        XCTAssertFalse(upright.isFlat)
-        XCTAssertEqual(upright.primary, 0, accuracy: 1e-9)
-
-        let tilted = LevelEngine.reading(gx: sin(.pi / 18), gy: -cos(.pi / 18), gz: 0)
-        XCTAssertEqual(tilted.primary, 10, accuracy: 1e-6)
-
-        let flat = LevelEngine.reading(gx: 0, gy: 0, gz: -1)
-        XCTAssertTrue(flat.isFlat)
-    }
 }

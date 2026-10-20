@@ -28,6 +28,8 @@ targets:
         NSCameraUsageDescription: DepthKit uses the LiDAR Scanner and TrueDepth camera to measure distances and boxes. Images never leave your iPhone.
         UILaunchScreen: {}
         UIRequiresFullScreen: true
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         CFBundleURLTypes:

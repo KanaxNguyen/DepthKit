@@ -8,7 +8,7 @@ struct TrueDepthMeasureView: View {
         } else {
             SensorUnavailableView(
                 title: "TrueDepth Not Available",
-                message: "Near needs an iPhone with Face ID."
+                message: "The front-camera distance needs an iPhone with Face ID."
             )
         }
     }
@@ -31,10 +31,10 @@ private struct TrueDepthSessionView: View {
                 if showSaved {
                     SavedToast()
                 } else {
-                    HintPill(text: engine.errorMessage ?? "Front camera · best from 20 cm to 1 m")
+                    HintPill(text: engine.errorMessage ?? "Front camera · works best from 20 cm to 1 m")
                 }
                 Spacer()
-                ReadoutCard(title: "Near", value: engine.distance.map { MeasureFormat.length($0, units: units) }) {
+                ReadoutCard(title: "From iPhone", value: engine.distance.map { MeasureFormat.length($0, units: units) }) {
                     Label(engine.isHighQuality ? "High quality depth" : "Low quality depth",
                           systemImage: engine.isHighQuality ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
                 }
@@ -43,7 +43,7 @@ private struct TrueDepthSessionView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
-            .padding(.bottom, 84)
+            .padding(.bottom, 12)
         }
         .onAppear { engine.start() }
         .onDisappear { engine.stop() }

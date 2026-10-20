@@ -6,13 +6,12 @@ SwiftUI, iOS 18+, no network, no account. Camera frames are processed on device 
 
 ## Features
 
-| Mode | Sensor | What it does |
+| Tool | Sensor | What it does |
 |---|---|---|
-| **Distance** | LiDAR | Point-to-point distance between two surfaces |
-| **Range** | LiDAR | Distance from the iPhone to whatever is under the crosshair, with a confidence badge |
+| **Distance · Two Points** | LiDAR | Distance between two surfaces you pick |
+| **Distance · From iPhone** | LiDAR (back) or TrueDepth (front) | Distance from the iPhone to whatever is under the crosshair; flip between cameras like in Camera |
 | **Box** | LiDAR | Length × width × height of a box on the floor, plus volume and dimensional weight (÷5000 or ÷6000) |
-| **Near** | TrueDepth | Close-range distance (about 20 cm – 1 m) from the front camera |
-| **Level** | Motion | Spirit level, upright or flat on a surface |
+| **Level** | Motion | Edge mode with a world-level horizon, or surface mode with a bubble; tells you which way to adjust, shows slope in %, and can measure relative to a reference position |
 
 The app also includes:
 
@@ -24,6 +23,10 @@ The app also includes:
   - "What was my last measurement in DepthKit". Siri answers this one without opening the app.
 - **Widgets.** Home Screen widgets in small and medium sizes; the medium one has Box and Distance shortcuts. There are also Lock Screen widgets in rectangular and inline styles.
 - **Control Center.** The Measure Box and Measure Distance controls open the app straight into that mode.
+- **Developer screen** (Settings › Developer):
+  - Tune the box estimator and readout parameters on device.
+  - Show live depth stats and a color-coded depth heatmap, with the detected box region drawn in white.
+  - Capture paired RGB + LiDAR samples (`rgb.jpg`, `depth.f32`, `confidence.u8`, `meta.json` with intrinsics and pose) to Files › DepthKit › Captures, for fine-tuning or evaluating depth models.
 - **Design.** Follows the Human Interface Guidelines: system components, SF Symbols, Dynamic Type, VoiceOver labels, haptics, and Liquid Glass on iOS 26 and later.
 
 ## How box measuring works

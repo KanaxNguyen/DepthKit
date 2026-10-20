@@ -55,11 +55,25 @@ enum BoxEstimator {
         var minPoints = 150
         var maxRange: Float = 4
         var seedSearchRadius = 12
+        var heightPercentile = 0.97
+        /// Neighboring pixels join the region when their depths differ by less than jumpBase + jumpPerMeter × depth.
+        var jumpBase: Float = 0.03
+        var jumpPerMeter: Float = 0.02
+    }
+
+    /// The estimate plus the pixels it was built from (for the developer overlay).
+    struct Analysis {
+        var estimate: BoxEstimate?
+        var region: [Int]
     }
 
     static func estimate(_ frame: DepthFrame, floorY: Float, options: Options = Options()) -> BoxEstimate? {
+        analyze(frame, floorY: floorY, options: options).estimate
+    }
+
+    static func analyze(_ frame: DepthFrame, floorY: Float, options: Options = Options()) -> Analysis {
         let count = frame.width * frame.height
-        guard frame.depth.count == count else { return nil }
+        guard frame.depth.count == count else { return Analysis(estimate: nil, region: []) }
 
         // Height above the floor for every usable pixel.
         var heights = [Float](repeating: -.infinity, count: count)
@@ -76,18 +90,23 @@ enum BoxEstimator {
             }
         }
 
-        guard let seed = findSeed(frame: frame, heights: heights, options: options) else { return nil }
-        let region = grow(from: seed, frame: frame, heights: heights, minHeight: options.minHeight)
-        guard region.count >= options.minPoints else { return nil }
+        guard let seed = findSeed(frame: frame, heights: heights, options: options) else {
+            return Analysis(estimate: nil, region: [])
+        }
+        let region = grow(from: seed, frame: frame, heights: heights, options: options)
+        guard region.count >= options.minPoints else { return Analysis(estimate: nil, region: region) }
 
         let regionHeights = region.map { Double(heights[$0]) }
-        guard let boxHeight = Geometry.percentile(regionHeights, 0.97), boxHeight > 0.03 else { return nil }
+        guard let boxHeight = Geometry.percentile(regionHeights, options.heightPercentile), boxHeight > 0.03 else {
+            return Analysis(estimate: nil, region: region)
+        }
 
         let footprint = region.map { SIMD2<Double>(Double(points[$0].x), Double(points[$0].z)) }
-        guard let rect = Geometry.minAreaRect(footprint) else { return nil }
+        guard let rect = Geometry.minAreaRect(footprint) else { return Analysis(estimate: nil, region: region) }
 
-        return BoxEstimate(length: rect.length, width: rect.width, height: boxHeight,
-                           footprint: rect.corners, floorY: Double(floorY))
+        let estimate = BoxEstimate(length: rect.length, width: rect.width, height: boxHeight,
+                                   footprint: rect.corners, floorY: Double(floorY))
+        return Analysis(estimate: estimate, region: region)
     }
 
     /// Median of several per-frame estimates; corners come from the sample closest to the median volume.
@@ -119,7 +138,7 @@ enum BoxEstimator {
     }
 
     /// 4-connected flood fill over above-floor pixels whose depth changes smoothly.
-    private static func grow(from seed: Int, frame: DepthFrame, heights: [Float], minHeight: Float) -> [Int] {
+    private static func grow(from seed: Int, frame: DepthFrame, heights: [Float], options: Options) -> [Int] {
         var visited = [Bool](repeating: false, count: heights.count)
         var queue = [seed]
         visited[seed] = true
@@ -128,11 +147,11 @@ enum BoxEstimator {
             let i = queue[head]; head += 1
             let x = i % frame.width, y = i / frame.width
             let d = frame.depth[i]
-            let jump = 0.03 + 0.02 * d
+            let jump = options.jumpBase + options.jumpPerMeter * d
             for (nx, ny) in [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)] {
                 guard nx >= 0, ny >= 0, nx < frame.width, ny < frame.height else { continue }
                 let n = ny * frame.width + nx
-                guard !visited[n], heights[n] > minHeight, abs(frame.depth[n] - d) < jump else { continue }
+                guard !visited[n], heights[n] > options.minHeight, abs(frame.depth[n] - d) < jump else { continue }
                 visited[n] = true
                 queue.append(n)
             }
