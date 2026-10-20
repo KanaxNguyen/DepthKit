@@ -1,60 +1,112 @@
+<div align="center">
+
+<img src="docs/icon.png" width="112" alt="DepthKit app icon" />
+
 # DepthKit
 
-A measuring app for iPhone that uses both depth sensors: the **LiDAR Scanner** on the back and the **TrueDepth camera** on the front. Its headline feature is **box dimensioning**: aim at a parcel and get length × width × height, volume and courier dimensional weight.
+**Measure the world with every depth sensor on your iPhone.**<br/>
+LiDAR, TrueDepth and the back cameras, in one native SwiftUI app with Siri, widgets and a built-in sensor lab.
 
-SwiftUI, iOS 18+, no network, no account. Camera frames are processed on device and never stored.
+![iOS 18+](https://img.shields.io/badge/iOS-18%2B-000?logo=apple)
+![Swift](https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white)
+![SwiftUI](https://img.shields.io/badge/SwiftUI-Liquid%20Glass-0A84FF)
+![ARKit](https://img.shields.io/badge/ARKit-LiDAR-5E5CE6)
+![App Intents](https://img.shields.io/badge/Siri-App%20Intents-FF375F)
+![Tests](https://img.shields.io/badge/tests-29%20app%20%2B%209%20lab-34C759)
 
-## Features
+<br/>
 
-| Tool | Sensor | What it does |
+<img src="docs/screenshots/level-edge.png" width="230" alt="Level held on an edge" />&nbsp;&nbsp;
+<img src="docs/screenshots/level-flat.png" width="230" alt="Level lying flat, level reached" />&nbsp;&nbsp;
+<img src="docs/screenshots/history.png" width="230" alt="Measurement history" />
+
+</div>
+
+---
+
+## ✨ Highlights
+
+- 📦 **Box dimensioning.** Aim at a parcel to get length × width × height, volume and courier dimensional weight. This is the logistics feature at the heart of the app.
+- 📏 **One Distance tool, every sensor.** Measure between two points, or from the iPhone to a target with the back **LiDAR** or the front **TrueDepth** camera. Flip between them like in Camera.
+- 🔬 **Compare sensors in one tap.** See how far Apple's two-camera (stereo) depth is from LiDAR, by day or in the dark, with both depth maps side by side.
+- 🫧 **A level that tells you what to do.** An artificial horizon or bubble gauge, a "rotate clockwise" style hint, slope in %, and Set Zero for relative angles.
+- 🗣️ **Siri, widgets and Control Center.** Say *"Measure a box with DepthKit"*, see your latest results on the Home and Lock Screen, and launch a tool from Control Center.
+- 🛠️ **Developer mode.** Tune the algorithms on device, overlay a live depth heatmap, and capture RGB + LiDAR samples to train depth models.
+
+## 🧭 Tools
+
+| Tool | Sensor | What you get |
 |---|---|---|
-| **Distance · Two Points** | LiDAR | Distance between two surfaces you pick |
-| **Distance · From iPhone** | LiDAR (back) or TrueDepth (front) | Distance from the iPhone to whatever is under the crosshair; flip between cameras like in Camera |
-| **Box** | LiDAR | Length × width × height of a box on the floor, plus volume and dimensional weight (÷5000 or ÷6000) |
-| **Level** | Motion | Edge mode with a world-level horizon, or surface mode with a bubble; tells you which way to adjust, shows slope in %, and can measure relative to a reference position |
+| **Distance · Two Points** | LiDAR | Distance between any two surfaces |
+| **Distance · From iPhone** | LiDAR (back) / TrueDepth (front) | Distance to whatever is under the crosshair, with a confidence badge |
+| **Distance · Compare** | LiDAR + two cameras | Stereo vs LiDAR at the center and across the image, plus a plain-language verdict |
+| **Box** | LiDAR | L × W × H, liters, dimensional weight (÷5000 / ÷6000) and a 3D wireframe over the camera |
+| **Level** | Motion | Edge or surface level, directional hint, slope %, Set Zero |
 
-The app also includes:
+Every result can be saved to **History**, exported as **CSV**, and appears in the **widget**.
 
-- **History.** Every saved result, with swipe to delete and CSV export.
-- **Siri and Shortcuts** (App Intents), with no setup needed:
-  - "Measure a box with DepthKit"
-  - "Measure distance with DepthKit"
-  - "Open the level in DepthKit"
-  - "What was my last measurement in DepthKit". Siri answers this one without opening the app.
-- **Widgets.** Home Screen widgets in small and medium sizes; the medium one has Box and Distance shortcuts. There are also Lock Screen widgets in rectangular and inline styles.
-- **Control Center.** The Measure Box and Measure Distance controls open the app straight into that mode.
-- **Developer screen** (Settings › Developer):
-  - Tune the box estimator and readout parameters on device.
-  - Show live depth stats and a color-coded depth heatmap, with the detected box region drawn in white.
-  - Capture paired RGB + LiDAR samples (`rgb.jpg`, `depth.f32`, `confidence.u8`, `meta.json` with intrinsics and pose) to Files › DepthKit › Captures, for fine-tuning or evaluating depth models.
-- **Design.** Follows the Human Interface Guidelines: system components, SF Symbols, Dynamic Type, VoiceOver labels, haptics, and Liquid Glass on iOS 26 and later.
+## 📦 How box measuring works
 
-## How box measuring works
+The estimator in [`BoxEstimator.swift`](DepthKit/Core/BoxEstimator.swift) is pure Swift and unit-tested on synthetic depth maps, so it runs without a device.
 
-`DepthKit/Core/BoxEstimator.swift` is pure Swift and unit-tested without a device.
+```mermaid
+flowchart LR
+    A[LiDAR depth 256×192<br/>+ confidence] --> B[Unproject pixels<br/>to world points]
+    F[ARKit floor plane] --> C
+    B --> C[Flood-fill from crosshair:<br/>pixels above the floor<br/>with continuous depth]
+    C --> D[Height = 97th percentile<br/>above the floor]
+    C --> E[Footprint = minimum-area<br/>rectangle of the convex hull]
+    D --> G[Median over 12 frames]
+    E --> G
+    G --> H[L × W × H · volume · dim. weight]
+```
 
-1. ARKit detects the floor plane and supplies a smoothed LiDAR depth map (256 × 192) with per-pixel confidence.
-2. Each high-confidence pixel is unprojected to a world point using the camera intrinsics, scaled to depth resolution, and the camera pose.
-3. Starting from the crosshair, a flood fill collects pixels that sit at least 2 cm above the floor and have continuous depth. This set of pixels is the box.
-4. **Height** is the 97th percentile of the region's height above the floor.
-5. **Footprint.** The region is projected onto the floor. The app takes its convex hull, then the minimum-area enclosing rectangle by rotating calipers, which gives length and width at any yaw.
-6. Twelve frames are measured, and the median of each dimension is reported. The 3D wireframe is drawn back over the camera view.
+The rotating-calipers rectangle finds the right length and width whatever the box's angle on the floor. Thresholds such as minimum height, edge depth jump and the percentile can be tuned live in **Settings › Developer**.
 
-## Project layout
+## 🗣️ Siri, widgets and Control Center
+
+| Surface | What it does |
+|---|---|
+| **Siri** | *"Measure a box with DepthKit"*, *"Measure distance with DepthKit"*, *"Open the level in DepthKit"*, *"What was my last measurement in DepthKit"* (answered without opening the app) |
+| **Home Screen widget** | Latest result (small), or the last three with Box and Distance shortcuts (medium) |
+| **Lock Screen widget** | Latest result, in rectangular or inline style |
+| **Control Center** | **Measure Box** and **Measure Distance** controls |
+| **Deep links** | `depthkit://measure/box`, `depthkit://measure/distance`, `depthkit://history` |
+
+The app, its widgets and its intents share data through an App Group.
+
+## 🔬 Sensor lab
+
+Can the cameras alone measure depth as well as LiDAR, and what happens at night?
+
+- **On the iPhone:** **Distance › Compare** gives an instant answer with one tap.
+- **On a Mac:** the [`lab/`](lab/README.md) folder goes further on the same captures. It undistorts with Apple's calibration tables, rectifies the wide and ultra-wide pair, and scores five methods against LiDAR:
+
+| Method | Input | Reference |
+|---|---|---|
+| Apple stereo | wide + ultra-wide | AVFoundation dual-camera depth |
+| SGBM | wide + ultra-wide | OpenCV semi-global matching |
+| FoundationStereo | wide + ultra-wide | Wen et al., CVPR 2025 |
+| Depth Pro | one image | Bochkovskii et al. (Apple), ICLR 2025 |
+| Prompt Depth Anything | image + LiDAR prompt | Lin et al., CVPR 2025 |
+
+## 🏗️ Architecture
 
 ```
 DepthKit/
-  App/        app entry, router (deep links depthkit://measure/<mode>), App Shortcuts
-  Measure/    AR (LiDAR), TrueDepth and motion engines; measuring UI
-  Core/       geometry, box estimator, pixel buffer helpers (no ARKit dependency)
-  History/    history list, CSV export
-  Settings/   units, dimensional-weight divisor, Siri tip
-DepthKitWidgets/  widgets and Control Center controls
-Shared/       models, App Group store, App Intents (compiled into app and widgets)
-DepthKitTests/    geometry, box estimator (synthetic depth maps), store, formatting, router
+├─ App/          entry point, router (tools, deep links), Siri App Shortcuts
+├─ Measure/      ARKit (LiDAR), AVFoundation (TrueDepth), Core Motion engines + measuring UI
+├─ Core/         geometry, box estimator, depth stats & colormap, sensor comparison (no ARKit dependency)
+├─ History/      history list, CSV export
+├─ Settings/     units, dimensional weight, Siri tip, developer parameters
+└─ Developer/    developer tools, dataset writer, Compare / Lab Capture
+DepthKitWidgets/ Home & Lock Screen widgets, Control Center controls
+Shared/          models, App Group store, App Intents (compiled into app + widgets)
+DepthKitTests/   geometry, box estimator, level, router, store, sensor comparison
+lab/             Python package, tests and notebook for the multi-camera experiment
 ```
 
-## Build
+## 🚀 Build and run
 
 ```bash
 brew install xcodegen      # once
@@ -62,25 +114,36 @@ xcodegen generate
 open DepthKit.xcodeproj
 ```
 
-Set your team in `project.yml` (`DEVELOPMENT_TEAM`) or in Xcode's Signing & Capabilities. The app and its widget share the App Group `group.vn.kanax.depthkit`; change it in both entitlements and `Shared/SharedStore.swift` if you use a different bundle ID.
+Choose your team in **Signing & Capabilities** (or set `DEVELOPMENT_TEAM` in `project.yml`). If you change the bundle ID, update the App Group `group.vn.kanax.depthkit` too.
 
 ```bash
 xcodebuild -project DepthKit.xcodeproj -scheme DepthKit \
   -destination 'platform=iOS Simulator,name=iPhone 17' test
 ```
 
-The Simulator has no LiDAR, TrueDepth or motion sensors. Each mode shows what the device lacks instead of failing. To measure for real, use an iPhone Pro: LiDAR is needed for Distance, Range and Box.
+> The Simulator has no LiDAR, TrueDepth or motion sensors, and each tool explains what is missing. Use an iPhone Pro for LiDAR features. To preview the Level screen in the Simulator, launch with `-demoLevelEdge 6.5` or `-demoLevelFlat 0.2 0.1`.
 
-## Limitations
+## 🔒 Privacy
 
-- Box mode expects a roughly rectangular box resting on the floor or a table that ARKit has detected as a plane.
-- Dark, shiny or transparent surfaces give LiDAR less valid depth. Results are estimates, typically within 1–2 cm at arm's length; check anything critical with a tape measure.
+- No account, no network, no analytics.
+- Camera frames are processed on the device and never uploaded.
+- Images are saved only when you choose to: a Developer sample or a Compare capture. They then appear in **Files › DepthKit**.
 
-## Lab: multi-camera depth experiments
+## ⚠️ Limitations
 
-`lab/` compares depth from the cameras against LiDAR on tripod captures taken with **Settings › Developer › Lab Capture**. It covers Apple's stereo depth, OpenCV SGBM, FoundationStereo, Depth Pro and Prompt Depth Anything, by day and at night. See [lab/README.md](lab/README.md).
+- Box mode expects a roughly rectangular box resting on a floor or table that ARKit has detected.
+- Dark, shiny or transparent surfaces return less LiDAR depth.
+- Infrared-blocking window film is designed to absorb the 900–1000 nm band, which includes LiDAR's 940 nm.
+- Results are estimates; accuracy figures will be added after field tests. Use a tape measure for anything critical.
 
-## Roadmap
+## 🗺️ Roadmap
 
-- Fine-tune a monocular depth model (Depth Anything V2 Small) on paired RGB + LiDAR captures and run it with Core ML, so iPhones without LiDAR can estimate distances, and compare it with LiDAR live.
-- Live Activity for multi-box measuring sessions.
+- [ ] Fine-tune a monocular depth model on paired RGB + LiDAR captures and run it on device with Core ML
+- [ ] Low-light enhancement (Zero-DCE / Retinexformer) before stereo at night
+- [ ] Live Activity for measuring many boxes in a row
+
+---
+
+<div align="center">
+Built by <a href="https://github.com/KanaxNguyen">Nguyen Nam Khanh</a> · AI student at FPT University Hanoi
+</div>
