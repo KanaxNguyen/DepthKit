@@ -7,7 +7,9 @@ struct MeasureView: View {
         @Bindable var router = router
         Group {
             // LiDAR modes share one view so switching between them keeps the AR session running.
-            if router.mode.usesLiDAR {
+            if router.tool == .distance && router.distanceMethod == .compare {
+                LabCaptureView(embedded: true)
+            } else if router.mode.usesLiDAR {
                 LiDARMeasureView(mode: router.mode)
             } else if router.mode == .near {
                 TrueDepthMeasureView()
@@ -44,7 +46,7 @@ private struct DistanceMethodBar: View {
                 ForEach(DistanceMethod.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
-            .frame(width: 220)
+            .frame(width: method == .fromPhone ? 270 : 330)
 
             if method == .fromPhone {
                 Button {

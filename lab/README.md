@@ -14,18 +14,15 @@ The reference is the **LiDAR depth camera**, which is Apple's processed LiDAR de
 
 ## 1. Capture (iPhone)
 
-1. Open **DepthKit › Settings › Developer › Lab Capture**. You need an iPhone Pro with LiDAR.
-2. Put the iPhone on a tripod. Enter a label such as `box-1.5m-day`, and the tape distance from the phone to whatever is at the center of the view.
-3. Tap **Capture**. In about 4 seconds the app saves:
-   - every back camera (`ultrawide.jpg`, `wide.jpg`, `tele.jpg`) with calibration files containing intrinsics, extrinsics in millimeters, and lens distortion tables
-   - Apple stereo depth (`apple_stereo_*`)
-   - LiDAR depth (`lidar_*`)
+In DepthKit, open **Measure › Distance › Compare**. Point at an object, tap **Compare** and hold still for about 4 seconds.
 
-   Everything is in sensor orientation (landscape). Ignore the EXIF orientation.
-4. A suggested set:
-   - distances 0.5, 1, 1.5, 2, 3 m
-   - each distance twice: room lights on, and lights off (dark)
-   - a textured target and a plain wall
+The phone shows the LiDAR and two-camera distances, their difference, and both depth maps right away; no tripod, labels or Mac are needed. Each capture is also saved to Files › DepthKit › LabCaptures with everything the Mac analysis below uses:
+
+- every back camera (`ultrawide.jpg`, `wide.jpg`, `tele.jpg`) with calibration files containing intrinsics, extrinsics in millimeters, and lens distortion tables
+- Apple stereo depth (`apple_stereo_*`)
+- LiDAR depth (`lidar_*`)
+
+Everything is in sensor orientation. Ignore the EXIF orientation.
 
 ## 2. Analyze (Mac)
 

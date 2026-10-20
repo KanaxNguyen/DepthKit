@@ -33,9 +33,17 @@ enum DistanceMethod: String, CaseIterable, Identifiable {
     case twoPoints
     /// From the iPhone to whatever is under the crosshair (LiDAR or TrueDepth).
     case fromPhone
+    /// LiDAR versus the two-camera (stereo) depth, side by side.
+    case compare
 
     var id: String { rawValue }
-    var title: String { self == .twoPoints ? "Two Points" : "From iPhone" }
+    var title: String {
+        switch self {
+        case .twoPoints: "Two Points"
+        case .fromPhone: "From iPhone"
+        case .compare: "Compare"
+        }
+    }
 }
 
 enum DistanceSensor {
@@ -56,7 +64,10 @@ final class AppRouter {
         case .box: .box
         case .level: .level
         case .distance:
-            distanceMethod == .twoPoints ? .distance : (distanceSensor == .lidar ? .range : .near)
+            switch distanceMethod {
+            case .twoPoints: .distance
+            case .fromPhone, .compare: distanceSensor == .lidar ? .range : .near
+            }
         }
     }
 

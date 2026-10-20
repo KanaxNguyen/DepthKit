@@ -108,3 +108,32 @@ final class DeveloperToolsTests: XCTestCase {
         XCTAssertEqual(DatasetWriter.summary(root: root).count, 1)
     }
 }
+
+final class SensorComparisonTests: XCTestCase {
+    func testStereoMatchingLidar() {
+        let lidar = [Float](repeating: 1.5, count: 16 * 12)
+        let stereo = [Float](repeating: 1.53, count: 32 * 24)
+        let c = SensorComparison.compute(lidar: lidar, lidarSize: (16, 12), stereo: stereo, stereoSize: (32, 24), brightness: 0.5)
+        XCTAssertEqual(c.lidarCenter ?? 0, 1.5, accuracy: 1e-6)
+        XCTAssertEqual(c.centerDifference ?? 0, 0.02, accuracy: 1e-4)
+        XCTAssertEqual(c.wholeImageError ?? 0, 0.02, accuracy: 1e-4)
+        XCTAssertEqual(c.stereoCoverage, 1)
+        XCTAssertTrue(c.verdict.hasPrefix("Two cameras agree with LiDAR within 2%"))
+        XCTAssertNil(c.darkNote)
+    }
+
+    func testNoStereoInTheDark() {
+        let lidar = [Float](repeating: 2, count: 16 * 12)
+        let stereo = [Float](repeating: .nan, count: 16 * 12)
+        let c = SensorComparison.compute(lidar: lidar, lidarSize: (16, 12), stereo: stereo, stereoSize: (16, 12), brightness: 0.05)
+        XCTAssertNil(c.stereoCenter)
+        XCTAssertEqual(c.stereoCoverage, 0)
+        XCTAssertTrue(c.verdict.hasPrefix("The two cameras found no depth"))
+        XCTAssertNotNil(c.darkNote)
+    }
+
+    func testLargeErrorIsUnreliable() {
+        let c = SensorComparison(lidarCenter: 3, stereoCenter: 4, wholeImageError: 0.3, stereoCoverage: 0.6, brightness: 0.4)
+        XCTAssertTrue(c.verdict.contains("33% off LiDAR here: unreliable"))
+    }
+}

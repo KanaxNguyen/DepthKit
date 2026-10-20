@@ -79,12 +79,12 @@ struct DeveloperView: View {
                 NavigationLink {
                     LabCaptureView()
                 } label: {
-                    Label("Lab Capture", systemImage: "camera.metering.matrix")
+                    Label("Compare Sensors", systemImage: "square.split.2x1")
                 }
             } header: {
-                Text("Multi-Camera Experiment")
+                Text("Experiment")
             } footer: {
-                Text("Captures all back cameras with calibration, Apple's stereo depth and LiDAR depth in one go, for comparing stereo, monocular and LiDAR-guided depth models on a Mac. See lab/README.md in the repository.")
+                Text("Point at something and tap once: see how far the two-camera (stereo) depth is from LiDAR, by day or at night. Each capture is also saved for optional deeper analysis on a Mac.")
             }
 
             Section {

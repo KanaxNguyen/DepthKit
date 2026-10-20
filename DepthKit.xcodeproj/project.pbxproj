@@ -38,6 +38,7 @@
 		D42ADB668CE94A0C2264DF78 /* DepthKitWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 61B95155AF12A031172B65CE /* DepthKitWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D4420999BC39FB3840DA4C3A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5ABA1C0AB2F078C3F8A41FFD /* Assets.xcassets */; };
 		D6848DA5A093CF59B9999687 /* HistoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB680320BD4C6D30C362EE26 /* HistoryModel.swift */; };
+		D7C77B11C92886F7EA5E6F48 /* SensorComparison.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBC69632F0FB979F7A027398 /* SensorComparison.swift */; };
 		E0C050BA80CBDF01C8F4EF4C /* TrueDepthMeasureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FAEFD7D23A79C673CF28507 /* TrueDepthMeasureView.swift */; };
 		E8C3FA8773D168BC24FDA696 /* MeasureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE0EB40245D7430E432ACA0F /* MeasureView.swift */; };
 		EDEAF1E525E3DD80F7626517 /* AppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF202673B95D470A7FB8A5C /* AppShortcuts.swift */; };
@@ -115,6 +116,7 @@
 		DE0EB40245D7430E432ACA0F /* MeasureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasureView.swift; sourceTree = "<group>"; };
 		E5A263E64F89EBC069F54108 /* DevSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevSettings.swift; sourceTree = "<group>"; };
 		E8F8D1607ECE2B8C173217D9 /* LabCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabCaptureView.swift; sourceTree = "<group>"; };
+		EBC69632F0FB979F7A027398 /* SensorComparison.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorComparison.swift; sourceTree = "<group>"; };
 		EDC74FED5C64E3834CAC8C17 /* DepthKit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DepthKit.entitlements; sourceTree = "<group>"; };
 		F18B04B56D8D48CC8AD0C938 /* DepthKitWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthKitWidgets.swift; sourceTree = "<group>"; };
 		F7CCAAF48B3149F433757875 /* DepthKitWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DepthKitWidgets.entitlements; sourceTree = "<group>"; };
@@ -223,6 +225,7 @@
 				0D45F1CF015748BAE83BB738 /* DepthDebug.swift */,
 				8D37BC05493F160A696BF436 /* Geometry.swift */,
 				BAEA82ACD5566819C022D12E /* PixelBuffers.swift */,
+				EBC69632F0FB979F7A027398 /* SensorComparison.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -396,6 +399,7 @@
 				5FDB063288C94B7B280D9D8A /* Models.swift in Sources */,
 				392EC0765CA16FE3D65EAC07 /* PixelBuffers.swift in Sources */,
 				AB171D228E827471DA560B0D /* RootView.swift in Sources */,
+				D7C77B11C92886F7EA5E6F48 /* SensorComparison.swift in Sources */,
 				23F69BE208F3D0EDCE902C38 /* SettingsView.swift in Sources */,
 				54B61C8A9B444FA95ADD3449 /* SharedStore.swift in Sources */,
 				70DDA6514418E856D6C7011E /* TrueDepthEngine.swift in Sources */,

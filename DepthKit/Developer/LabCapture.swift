@@ -1,6 +1,7 @@
 @preconcurrency import AVFoundation
 import Foundation
 import Observation
+import UIKit
 
 /// One-tap multi-sensor capture for depth experiments. With the iPhone on a tripod it takes, in order:
 /// 1. A photo from every back camera (ultra-wide, wide, telephoto) with full calibration
@@ -28,6 +29,7 @@ final class LabCaptureEngine: @unchecked Sendable {
     var isCapturing = false
     var steps: [String] = []
     var resultMessage: String?
+    var lastResult: LabResult?
 
     // MARK: Session
 
@@ -54,7 +56,11 @@ final class LabCaptureEngine: @unchecked Sendable {
         isCapturing = true
         steps = []
         resultMessage = nil
+        lastResult = nil
         defer { isCapturing = false }
+        var stereoMap: DepthArray?
+        var lidarMap: DepthArray?
+        var photo: UIImage?
 
         let folder = Self.root.appendingPathComponent(Self.folderName(label: label))
         do {
@@ -81,7 +87,7 @@ final class LabCaptureEngine: @unchecked Sendable {
             try await settle()
             if let photo = try await takePhotos(constituents: []).first, let depth = photo.depthData {
                 try Self.writeImage(photo, to: folder.appendingPathComponent("apple_stereo_rgb.jpg"))
-                try Self.writeDepth(depth, name: "apple_stereo", to: folder)
+                stereoMap = try Self.writeDepth(depth, name: "apple_stereo", to: folder)
                 steps[steps.count - 1] = "Apple stereo depth ✓"
             } else {
                 steps[steps.count - 1] = "Apple stereo depth: not delivered"
@@ -93,9 +99,10 @@ final class LabCaptureEngine: @unchecked Sendable {
             }
             try await onQueue { try self.configure(lidar, depth: true) }
             try await settle()
-            if let photo = try await takePhotos(constituents: []).first, let depth = photo.depthData {
-                try Self.writeImage(photo, to: folder.appendingPathComponent("lidar_rgb.jpg"))
-                try Self.writeDepth(depth, name: "lidar", to: folder)
+            if let lidarPhoto = try await takePhotos(constituents: []).first, let depth = lidarPhoto.depthData {
+                try Self.writeImage(lidarPhoto, to: folder.appendingPathComponent("lidar_rgb.jpg"))
+                lidarMap = try Self.writeDepth(depth, name: "lidar", to: folder)
+                photo = lidarPhoto.fileDataRepresentation().flatMap(UIImage.init(data:))
                 steps[steps.count - 1] = "LiDAR depth ✓"
             } else {
                 steps[steps.count - 1] = "LiDAR depth: not delivered"
@@ -105,9 +112,15 @@ final class LabCaptureEngine: @unchecked Sendable {
                                tapeDistanceMeters: tapeDistance, images: files)
             try Self.write(meta, to: folder.appendingPathComponent("meta.json"))
 
+            if let lidarMap {
+                lastResult = LabResult(photo: photo, lidar: lidarMap, stereo: stereoMap,
+                                       brightness: photo.map(Self.brightness) ?? 0.5,
+                                       folderName: folder.lastPathComponent)
+            }
+
             // Back to the multi-camera preview.
             try await onQueue { try self.configure(multi, depth: false) }
-            resultMessage = "Saved \(folder.lastPathComponent)"
+            resultMessage = lastResult == nil ? "Saved, but no LiDAR depth to compare." : nil
         } catch {
             resultMessage = "Capture failed: \(error.localizedDescription)"
         }
@@ -215,7 +228,7 @@ final class LabCaptureEngine: @unchecked Sendable {
 
     /// Lets focus and exposure settle after switching cameras.
     private func settle() async throws {
-        try await Task.sleep(for: .milliseconds(900))
+        try await Task.sleep(for: .milliseconds(600))
     }
 
     // MARK: Files
@@ -243,8 +256,9 @@ final class LabCaptureEngine: @unchecked Sendable {
         try data.write(to: url)
     }
 
-    /// Writes depth as Float32 meters plus its calibration and size.
-    private static func writeDepth(_ depthData: AVDepthData, name: String, to folder: URL) throws {
+    /// Writes depth as Float32 meters plus its calibration and size, and returns it.
+    @discardableResult
+    private static func writeDepth(_ depthData: AVDepthData, name: String, to folder: URL) throws -> DepthArray {
         let depth = depthData.depthDataType == kCVPixelFormatType_DepthFloat32
             ? depthData : depthData.converting(toDepthDataType: kCVPixelFormatType_DepthFloat32)
         let map = PixelBuffers.floats(depth.depthDataMap)
@@ -254,6 +268,20 @@ final class LabCaptureEngine: @unchecked Sendable {
                              accuracy: depthData.depthDataAccuracy == .absolute ? "absolute" : "relative",
                              calibration: depthData.cameraCalibrationData.map(CalibrationRecord.init))
         try write(info, to: folder.appendingPathComponent("\(name)_depth.json"))
+        return DepthArray(width: map.width, height: map.height, values: map.values)
+    }
+
+    /// Mean luminance of a 16 × 16 thumbnail, 0 … 1.
+    static func brightness(_ image: UIImage) -> Double {
+        guard let cg = image.cgImage else { return 0.5 }
+        let side = 16
+        var pixels = [UInt8](repeating: 0, count: side * side)
+        guard let context = CGContext(data: &pixels, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side,
+                                      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)
+        else { return 0.5 }
+        context.interpolationQuality = .medium
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: side, height: side))
+        return Double(pixels.reduce(0) { $0 + Int($1) }) / Double(side * side * 255)
     }
 
     private static func write<T: Encodable>(_ value: T, to url: URL) throws {
@@ -261,6 +289,34 @@ final class LabCaptureEngine: @unchecked Sendable {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         try encoder.encode(value).write(to: url)
+    }
+}
+
+struct DepthArray {
+    let width: Int
+    let height: Int
+    let values: [Float]
+}
+
+/// What the Compare screen shows after a capture.
+struct LabResult: Identifiable {
+    let id = UUID()
+    let photo: UIImage?
+    let comparison: SensorComparison
+    let lidarImage: CGImage?
+    let stereoImage: CGImage?
+    let folderName: String
+
+    init(photo: UIImage?, lidar: DepthArray, stereo: DepthArray?, brightness: Double, folderName: String) {
+        self.photo = photo
+        self.folderName = folderName
+        comparison = SensorComparison.compute(lidar: lidar.values, lidarSize: (lidar.width, lidar.height),
+                                              stereo: stereo?.values, stereoSize: stereo.map { ($0.width, $0.height) },
+                                              brightness: brightness)
+        lidarImage = DepthColormap.image(depth: lidar.values, width: lidar.width, height: lidar.height, confidence: nil)
+        stereoImage = stereo.flatMap {
+            DepthColormap.image(depth: $0.values, width: $0.width, height: $0.height, confidence: nil)
+        }
     }
 }
 
