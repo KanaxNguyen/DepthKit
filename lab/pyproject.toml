@@ -1,0 +1,36 @@
+[project]
+name = "depthlab"
+version = "0.1.0"
+description = "Multi-camera depth experiments on DepthKit Lab Captures"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "numpy>=1.26",
+    "opencv-python>=4.9",
+    "pillow>=10",
+    "matplotlib>=3.8",
+    "pandas>=2.1",
+    "ipykernel>=6.29",
+]
+
+[project.optional-dependencies]
+models = [
+    "torch>=2.3",
+    "torchvision>=0.18",
+    "huggingface_hub>=0.23",
+    "timm>=1.0",
+    "einops>=0.8",
+    "omegaconf>=2.3",
+    "pillow_heif>=0.16",
+    "imageio>=2.34",
+    "scipy>=1.11",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests"]
+
+[tool.uv]
+package = false

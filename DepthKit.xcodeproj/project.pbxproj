@@ -10,6 +10,7 @@
 		068716DC362422A364D00221 /* Geometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D37BC05493F160A696BF436 /* Geometry.swift */; };
 		0DDCE07560B4448D4905E4C8 /* Intents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B508C89F20647489D44A36C6 /* Intents.swift */; };
 		216523B642CE6959521E69C7 /* HUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA1C738ADB500FA8CF552E8D /* HUD.swift */; };
+		23CD86ECBFA978BF85873312 /* LabCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 890641EF3C1736DC11F46782 /* LabCapture.swift */; };
 		23F69BE208F3D0EDCE902C38 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC9DF4FA90709595567028D /* SettingsView.swift */; };
 		2444CC01DAE2F9125496D918 /* BoxEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE6E4AC17868EFAED7C9D99 /* BoxEstimatorTests.swift */; };
 		392EC0765CA16FE3D65EAC07 /* PixelBuffers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAEA82ACD5566819C022D12E /* PixelBuffers.swift */; };
@@ -23,6 +24,7 @@
 		6D0995B2EA30658C5AA3E91A /* LiDARMeasureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03BA064740F653C85919D2EF /* LiDARMeasureView.swift */; };
 		70DDA6514418E856D6C7011E /* TrueDepthEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAF0377C0B1082858D3200F1 /* TrueDepthEngine.swift */; };
 		8FFBBED043886C9812664513 /* LevelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71D12E647501A0931388AB7 /* LevelView.swift */; };
+		95D929358EDE219EE0ADECC0 /* LabCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F8D1607ECE2B8C173217D9 /* LabCaptureView.swift */; };
 		9633926BA6EBEE52BDDD8D81 /* DepthKitWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18B04B56D8D48CC8AD0C938 /* DepthKitWidgets.swift */; };
 		AB171D228E827471DA560B0D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EF35423B09327211B65AF7B /* RootView.swift */; };
 		B09252F0BAD1DB8BB929A06F /* GeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C7CEFC47B834EF536A76851 /* GeometryTests.swift */; };
@@ -89,6 +91,7 @@
 		5EF35423B09327211B65AF7B /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		61B95155AF12A031172B65CE /* DepthKitWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = DepthKitWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E1A91DD31E5FDD90BD841C4 /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
+		890641EF3C1736DC11F46782 /* LabCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabCapture.swift; sourceTree = "<group>"; };
 		89C2CBA1F26F782F14C9FEF6 /* DepthKitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthKitApp.swift; sourceTree = "<group>"; };
 		8D37BC05493F160A696BF436 /* Geometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Geometry.swift; sourceTree = "<group>"; };
 		8FAEFD7D23A79C673CF28507 /* TrueDepthMeasureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrueDepthMeasureView.swift; sourceTree = "<group>"; };
@@ -111,6 +114,7 @@
 		DB680320BD4C6D30C362EE26 /* HistoryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryModel.swift; sourceTree = "<group>"; };
 		DE0EB40245D7430E432ACA0F /* MeasureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasureView.swift; sourceTree = "<group>"; };
 		E5A263E64F89EBC069F54108 /* DevSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevSettings.swift; sourceTree = "<group>"; };
+		E8F8D1607ECE2B8C173217D9 /* LabCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LabCaptureView.swift; sourceTree = "<group>"; };
 		EDC74FED5C64E3834CAC8C17 /* DepthKit.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DepthKit.entitlements; sourceTree = "<group>"; };
 		F18B04B56D8D48CC8AD0C938 /* DepthKitWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthKitWidgets.swift; sourceTree = "<group>"; };
 		F7CCAAF48B3149F433757875 /* DepthKitWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DepthKitWidgets.entitlements; sourceTree = "<group>"; };
@@ -169,6 +173,8 @@
 			children = (
 				B4FC68D20C399D42211ED742 /* DatasetWriter.swift */,
 				D84069FD6F004A6CBD2F1191 /* DeveloperView.swift */,
+				890641EF3C1736DC11F46782 /* LabCapture.swift */,
+				E8F8D1607ECE2B8C173217D9 /* LabCaptureView.swift */,
 			);
 			path = Developer;
 			sourceTree = "<group>";
@@ -381,6 +387,8 @@
 				D6848DA5A093CF59B9999687 /* HistoryModel.swift in Sources */,
 				4C1D91DF6C084872D6849957 /* HistoryView.swift in Sources */,
 				0DDCE07560B4448D4905E4C8 /* Intents.swift in Sources */,
+				23CD86ECBFA978BF85873312 /* LabCapture.swift in Sources */,
+				95D929358EDE219EE0ADECC0 /* LabCaptureView.swift in Sources */,
 				CBEFF42CD18B2FD476ACD0F7 /* LevelEngine.swift in Sources */,
 				8FFBBED043886C9812664513 /* LevelView.swift in Sources */,
 				6D0995B2EA30658C5AA3E91A /* LiDARMeasureView.swift in Sources */,

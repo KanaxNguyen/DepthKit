@@ -76,6 +76,18 @@ struct DeveloperView: View {
             }
 
             Section {
+                NavigationLink {
+                    LabCaptureView()
+                } label: {
+                    Label("Lab Capture", systemImage: "camera.metering.matrix")
+                }
+            } header: {
+                Text("Multi-Camera Experiment")
+            } footer: {
+                Text("Captures all back cameras with calibration, Apple's stereo depth and LiDAR depth in one go, for comparing stereo, monocular and LiDAR-guided depth models on a Mac. See lab/README.md in the repository.")
+            }
+
+            Section {
                 Button("Reset Parameters to Defaults") { confirmReset = true }
             }
         }

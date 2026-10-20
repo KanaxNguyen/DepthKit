@@ -76,6 +76,10 @@ The Simulator has no LiDAR, TrueDepth or motion sensors. Each mode shows what th
 - Box mode expects a roughly rectangular box resting on the floor or a table that ARKit has detected as a plane.
 - Dark, shiny or transparent surfaces give LiDAR less valid depth. Results are estimates, typically within 1–2 cm at arm's length; check anything critical with a tape measure.
 
+## Lab: multi-camera depth experiments
+
+`lab/` compares depth from the cameras against LiDAR on tripod captures taken with **Settings › Developer › Lab Capture**. It covers Apple's stereo depth, OpenCV SGBM, FoundationStereo, Depth Pro and Prompt Depth Anything, by day and at night. See [lab/README.md](lab/README.md).
+
 ## Roadmap
 
 - Fine-tune a monocular depth model (Depth Anything V2 Small) on paired RGB + LiDAR captures and run it with Core ML, so iPhones without LiDAR can estimate distances, and compare it with LiDAR live.
