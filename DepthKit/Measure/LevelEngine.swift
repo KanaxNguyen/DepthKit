@@ -88,11 +88,29 @@ final class LevelEngine {
     @ObservationIgnored private let manager = CMMotionManager()
     @ObservationIgnored private var gravity: SIMD3<Double>?
 
-    var isAvailable: Bool { manager.isDeviceMotionAvailable }
+    var isAvailable: Bool { isDemo || manager.isDeviceMotionAvailable }
     private(set) var reading = LevelReading()
 
+    /// Debug builds launched with `-demoLevelEdge <degrees>` or `-demoLevelFlat <roll> <pitch>` show a fixed
+    /// reading, so the screen can be checked in the Simulator (which has no motion sensors).
+    @ObservationIgnored private var isDemo = false
+
+    init() {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-demoLevelEdge"), i + 1 < args.count, let angle = Double(args[i + 1]) {
+            isDemo = true
+            reading = LevelReading(edgeAngle: angle)
+        } else if let i = args.firstIndex(of: "-demoLevelFlat"), i + 2 < args.count,
+                  let roll = Double(args[i + 1]), let pitch = Double(args[i + 2]) {
+            isDemo = true
+            reading = LevelReading(isFlat: true, roll: roll, pitch: pitch)
+        }
+        #endif
+    }
+
     func start() {
-        guard manager.isDeviceMotionAvailable, !manager.isDeviceMotionActive else { return }
+        guard !isDemo, manager.isDeviceMotionAvailable, !manager.isDeviceMotionActive else { return }
         manager.deviceMotionUpdateInterval = 1.0 / 60
         manager.startDeviceMotionUpdates(to: .main) { [weak self] motion, _ in
             guard let self, let g = motion?.gravity else { return }

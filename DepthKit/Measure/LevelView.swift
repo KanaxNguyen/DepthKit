@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Spirit level with two automatic layouts:
-/// - Edge: hold an edge of the iPhone against a surface; a horizon stays level with the world.
-/// - Surface: lay the iPhone flat; a bubble floats toward the high side.
-/// Turns green when level, says which way to adjust, shows slope in % and can measure from a reference.
+/// Spirit level drawn as one round gauge on a dark background.
+/// - Edge (held on an edge): an artificial horizon rotates inside the gauge and stays level with the world.
+/// - Surface (lying flat): a bubble floats toward the high side.
+/// The gauge and the number turn green when level; the hint says which way to adjust.
 struct LevelView: View {
     @Environment(HistoryModel.self) private var history
     @AppStorage(DevSettings.Key.levelTolerance, store: AppGroup.defaults) private var tolerance = DevSettings.Default.levelTolerance
@@ -12,6 +12,7 @@ struct LevelView: View {
 
     private var reading: LevelReading { engine.reading }
     private var isLevel: Bool { engine.isAvailable && reading.isLevel(tolerance: tolerance) }
+    private var tint: Color { isLevel ? .green : .accentColor }
 
     var body: some View {
         Group {
@@ -23,7 +24,7 @@ struct LevelView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(isLevel ? Color.green : Color(white: 0.07))
+        .background(Color.black)
         .onAppear { engine.start() }
         .onDisappear { engine.stop() }
         .sensoryFeedback(.success, trigger: isLevel) { _, new in new }
@@ -33,66 +34,82 @@ struct LevelView: View {
     }
 
     private var content: some View {
-        ZStack {
-            if reading.isFlat {
-                SurfaceDial(roll: reading.surfaceRoll, pitch: reading.surfacePitch, isLevel: isLevel)
-                    .transition(.opacity)
-            } else {
-                EdgeHorizon(deviation: reading.edgeDeviation, isLevel: isLevel)
-                    .transition(.opacity)
-            }
-
-            VStack(spacing: 12) {
+        VStack(spacing: 0) {
+            Group {
                 if showSaved {
                     SavedToast()
                 } else {
-                    HintPill(text: reading.isFlat ? "Surface · lying flat" : "Edge · hold against a surface")
+                    Text(reading.isFlat ? "Lay iPhone on the surface" : "Hold an edge of iPhone against the surface")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.white.opacity(0.7))
                 }
-                Spacer()
-                panel
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 12)
-        }
-    }
+            .frame(height: 44)
 
-    private var panel: some View {
-        let hint = reading.hint(tolerance: tolerance)
-        return VStack(spacing: 14) {
+            Spacer(minLength: 12)
+
+            Group {
+                if reading.isFlat {
+                    BubbleGauge(roll: reading.surfaceRoll, pitch: reading.surfacePitch, tint: tint)
+                } else {
+                    HorizonGauge(deviation: reading.edgeDeviation, tint: tint)
+                }
+            }
+            .frame(width: 280, height: 280)
+            .transition(.opacity)
+
+            Text(MeasureFormat.angle(reading.tilt))
+                .font(.system(size: 72, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .contentTransition(.numericText(value: reading.tilt))
+                .foregroundStyle(isLevel ? Color.green : Color.white)
+                .padding(.top, 20)
+
+            let hint = reading.hint(tolerance: tolerance)
             Label(hint.text, systemImage: hint.systemImage)
-                .font(.title3.weight(.semibold))
+                .font(.headline)
+                .foregroundStyle(isLevel ? Color.green : Color.white.opacity(0.85))
                 .contentTransition(.symbolEffect(.replace))
 
-            HStack(spacing: 0) {
-                if reading.isFlat {
-                    Stat(title: "Left–Right", value: MeasureFormat.angle(abs(reading.surfaceRoll)))
-                    Stat(title: "Front–Back", value: MeasureFormat.angle(abs(reading.surfacePitch)))
-                } else {
-                    Stat(title: "Angle", value: MeasureFormat.angle(abs(reading.edgeDeviation)))
-                }
-                Stat(title: "Slope", value: String(format: "%.1f%%", reading.slopePercent))
-            }
+            Text(details)
+                .font(.footnote.monospacedDigit())
+                .foregroundStyle(Color.white.opacity(0.6))
+                .padding(.top, 6)
 
-            HStack(spacing: 28) {
-                if reading.reference == nil {
-                    HUDButton(title: "Measure From Here", systemImage: "scope") { engine.setReference() }
-                } else {
-                    HUDButton(title: "Clear Reference", systemImage: "xmark") { engine.clearReference() }
-                }
-                HUDButton(title: "Save", systemImage: "square.and.arrow.down", prominent: true) { save() }
-            }
+            Spacer(minLength: 12)
 
-            if reading.reference != nil {
-                Text("Measuring from your reference position")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                Button {
+                    reading.reference == nil ? engine.setReference() : engine.clearReference()
+                } label: {
+                    Label(reading.reference == nil ? "Set Zero" : "Clear Zero",
+                          systemImage: reading.reference == nil ? "scope" : "xmark")
+                        .frame(maxWidth: .infinity)
+                }
+                .levelButtonStyle(prominent: false)
+
+                Button(action: save) {
+                    Label("Save", systemImage: "square.and.arrow.down")
+                        .frame(maxWidth: .infinity)
+                }
+                .levelButtonStyle(prominent: true)
             }
+            .controlSize(.large)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 12)
         }
-        .padding(.vertical, 16)
-        .padding(.horizontal, 20)
-        .frame(maxWidth: .infinity)
-        .hudBackground(in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .padding(.top, 8)
+    }
+
+    private var details: String {
+        var parts: [String] = []
+        if reading.isFlat {
+            parts.append("L–R " + MeasureFormat.angle(abs(reading.surfaceRoll)))
+            parts.append("F–B " + MeasureFormat.angle(abs(reading.surfacePitch)))
+        }
+        parts.append(String(format: "Slope %.1f%%", reading.slopePercent))
+        if reading.reference != nil { parts.append("from your zero") }
+        return parts.joined(separator: "  ·  ")
     }
 
     private func save() {
@@ -105,105 +122,100 @@ struct LevelView: View {
     }
 }
 
-private struct Stat: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.title2.weight(.bold))
-                .monospacedDigit()
-                .contentTransition(.numericText())
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+private extension View {
+    @ViewBuilder
+    func levelButtonStyle(prominent: Bool) -> some View {
+        if #available(iOS 26.0, *) {
+            if prominent { buttonStyle(.glassProminent) } else { buttonStyle(.glass) }
+        } else {
+            if prominent { buttonStyle(.borderedProminent) } else { buttonStyle(.bordered) }
         }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
     }
 }
 
-/// A two-tone horizon that stays level with the world while the iPhone rotates.
-private struct EdgeHorizon: View {
+/// Dial face shared by both gauges: a subtle disc, a rim and tick marks every 15°.
+private struct GaugeFace: View {
+    var body: some View {
+        ZStack {
+            Circle().fill(Color.white.opacity(0.06))
+            Circle().stroke(Color.white.opacity(0.25), lineWidth: 1)
+            ForEach(0..<24, id: \.self) { i in
+                let major = i % 6 == 0
+                Capsule()
+                    .fill(Color.white.opacity(major ? 0.8 : 0.35))
+                    .frame(width: major ? 3 : 2, height: major ? 14 : 8)
+                    .offset(y: -140 + (major ? 11 : 8))
+                    .rotationEffect(.degrees(Double(i) * 15))
+            }
+        }
+    }
+}
+
+/// Artificial horizon: the tinted half is the ground and stays level with the world while iPhone rotates.
+/// The fixed white marks at 3 and 9 o'clock line up with the horizon when level.
+private struct HorizonGauge: View {
     let deviation: Double
-    let isLevel: Bool
+    let tint: Color
 
     var body: some View {
-        GeometryReader { geo in
-            let side = max(geo.size.width, geo.size.height) * 2.5
+        ZStack {
+            GaugeFace()
+
             ZStack {
                 Rectangle()
-                    .fill(.white.opacity(isLevel ? 0.3 : 0.92))
-                    .frame(width: side, height: side / 2)
-                    .offset(y: side / 4)
-                    .rotationEffect(.degrees(-deviation))
-                    .position(x: geo.size.width / 2, y: geo.size.height / 2)
-
-                // Fixed reference line: when it lines up with the horizon, the iPhone is level.
+                    .fill(tint.opacity(0.85).gradient)
+                    .frame(width: 600, height: 300)
+                    .offset(y: 150)
                 Rectangle()
-                    .fill(.white)
-                    .frame(width: geo.size.width * 0.5, height: 2)
-                    .blendMode(.difference)
-                    .position(x: geo.size.width / 2, y: geo.size.height / 2 - 70)
-
-                Text(String(format: "%.1f°", abs(deviation)))
-                    .font(.system(size: 88, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .contentTransition(.numericText(value: abs(deviation)))
-                    .foregroundStyle(.white)
-                    .blendMode(.difference)
-                    .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                    .fill(Color.white)
+                    .frame(width: 600, height: 2)
             }
-            .compositingGroup()
+            .rotationEffect(.degrees(-deviation))
+            .clipShape(Circle().inset(by: 1))
+
+            HStack {
+                Capsule().fill(Color.white).frame(width: 36, height: 4)
+                Spacer()
+                Capsule().fill(Color.white).frame(width: 36, height: 4)
+            }
+            .padding(.horizontal, 6)
+            Circle().fill(Color.white).frame(width: 8, height: 8)
         }
-        .ignoresSafeArea()
         .accessibilityElement()
         .accessibilityLabel(String(format: "Tilted %.1f degrees", abs(deviation)))
     }
 }
 
-/// Target with rings at 1°, 5°, 10° and 15°; the bubble floats to the high side like a real bubble level.
-private struct SurfaceDial: View {
+/// Bubble level: rings at 1°, 5°, 10° and 15°; the bubble floats to the high side.
+private struct BubbleGauge: View {
     let roll: Double
     let pitch: Double
-    let isLevel: Bool
+    let tint: Color
 
-    private let pointsPerDegree = 9.0
+    private let pointsPerDegree = 8.0
     private let maxDegrees = 15.0
 
     var body: some View {
         let radius = maxDegrees * pointsPerDegree
         ZStack {
-            ForEach([1.0, 5.0, 10.0, 15.0], id: \.self) { degrees in
+            GaugeFace()
+            ForEach([1.0, 5.0, 10.0], id: \.self) { degrees in
                 Circle()
-                    .stroke(.white.opacity(degrees == 1 ? 0.9 : 0.3), lineWidth: degrees == 1 ? 2 : 1)
+                    .stroke(Color.white.opacity(degrees == 1 ? 0.8 : 0.25), lineWidth: degrees == 1 ? 2 : 1)
                     .frame(width: degrees * pointsPerDegree * 2, height: degrees * pointsPerDegree * 2)
-                if degrees >= 5 {
-                    Text("\(Int(degrees))°")
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.5))
-                        .offset(x: degrees * pointsPerDegree + 12)
-                }
             }
-            Path { path in
-                path.move(to: CGPoint(x: 0, y: radius)); path.addLine(to: CGPoint(x: radius * 2, y: radius))
-                path.move(to: CGPoint(x: radius, y: 0)); path.addLine(to: CGPoint(x: radius, y: radius * 2))
-            }
-            .stroke(.white.opacity(0.3), lineWidth: 1)
-            .frame(width: radius * 2, height: radius * 2)
+            Rectangle().fill(Color.white.opacity(0.2)).frame(width: radius * 2, height: 1)
+            Rectangle().fill(Color.white.opacity(0.2)).frame(width: 1, height: radius * 2)
 
             Circle()
-                .fill(isLevel ? Color.white : Color.accentColor)
-                .frame(width: 40, height: 40)
-                .overlay(Circle().stroke(.white, lineWidth: 2))
-                .shadow(color: .black.opacity(0.3), radius: 4)
+                .fill(tint.gradient)
+                .frame(width: 36, height: 36)
+                .overlay(Circle().stroke(Color.white.opacity(0.9), lineWidth: 2))
+                .shadow(color: .black.opacity(0.4), radius: 6)
                 .offset(bubbleOffset(radius: radius))
-                .animation(.interactiveSpring(response: 0.2), value: roll)
-                .animation(.interactiveSpring(response: 0.2), value: pitch)
+                .animation(.interactiveSpring(response: 0.25), value: roll)
+                .animation(.interactiveSpring(response: 0.25), value: pitch)
         }
-        .frame(width: radius * 2 + 60, height: radius * 2 + 60)
-        .offset(y: -60)
         .accessibilityElement()
         .accessibilityLabel(String(format: "Left to right %.1f degrees, front to back %.1f degrees", abs(roll), abs(pitch)))
     }
