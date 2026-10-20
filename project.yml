@@ -1,0 +1,88 @@
+name: DepthKit
+options:
+  bundleIdPrefix: vn.kanax
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: P5M34J84PB
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1"
+targets:
+  DepthKit:
+    type: application
+    platform: iOS
+    sources:
+      - DepthKit
+      - Shared
+    info:
+      path: DepthKit/Info.plist
+      properties:
+        CFBundleDisplayName: DepthKit
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSCameraUsageDescription: DepthKit uses the LiDAR Scanner and TrueDepth camera to measure distances and boxes. Images never leave your iPhone.
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        CFBundleURLTypes:
+          - CFBundleURLName: vn.kanax.depthkit
+            CFBundleURLSchemes:
+              - depthkit
+    entitlements:
+      path: DepthKit/DepthKit.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.vn.kanax.depthkit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: vn.kanax.depthkit
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - target: DepthKitWidgets
+  DepthKitWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - DepthKitWidgets
+      - Shared
+    info:
+      path: DepthKitWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: DepthKit
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: DepthKitWidgets/DepthKitWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.vn.kanax.depthkit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: vn.kanax.depthkit.widgets
+  DepthKitTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - DepthKitTests
+    dependencies:
+      - target: DepthKit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: vn.kanax.depthkit.tests
+schemes:
+  DepthKit:
+    build:
+      targets:
+        DepthKit: all
+    test:
+      targets:
+        - DepthKitTests

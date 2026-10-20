@@ -1,0 +1,210 @@
+import ARKit
+import RealityKit
+import SwiftUI
+
+struct LiDARMeasureView: View {
+    let mode: MeasureMode
+
+    var body: some View {
+        if ARMeasureEngine.isSupported {
+            LiDARSessionView(mode: mode)
+        } else {
+            SensorUnavailableView(
+                title: "LiDAR Not Available",
+                message: "Distance, Range and Box need an iPhone with a LiDAR Scanner (Pro models)."
+            )
+        }
+    }
+}
+
+private struct LiDARSessionView: View {
+    let mode: MeasureMode
+
+    @Environment(HistoryModel.self) private var history
+    @AppStorage(SharedSettings.unitsKey, store: AppGroup.defaults) private var units: UnitSystem = .metric
+    @AppStorage(SharedSettings.divisorKey, store: AppGroup.defaults) private var divisor: Double = 5000
+    @State private var engine = ARMeasureEngine()
+    @State private var showSaved = false
+
+    var body: some View {
+        ZStack {
+            ARViewContainer(engine: engine)
+                .ignoresSafeArea()
+
+            overlay
+                .allowsHitTesting(false)
+                .ignoresSafeArea()
+
+            Crosshair()
+
+            VStack(spacing: 12) {
+                if showSaved {
+                    SavedToast()
+                } else if let hint {
+                    HintPill(text: hint)
+                }
+                Spacer()
+                readout
+                controls
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 84)
+        }
+        .onAppear { engine.start() }
+        .onDisappear { engine.pause() }
+        .onChange(of: mode) { engine.resetReadings() }
+        .sensoryFeedback(.success, trigger: showSaved) { _, new in new }
+        .sensoryFeedback(.impact(weight: .light), trigger: engine.points.count)
+        .animation(.snappy, value: showSaved)
+    }
+
+    // MARK: Overlay drawing
+
+    private var overlay: some View {
+        Canvas { context, _ in
+            let accent = Color.accentColor
+            if mode == .distance {
+                var targets = engine.screenPoints
+                if engine.points.count == 1, let hit = engine.screenHit { targets.append(hit) }
+                if targets.count == 2 {
+                    var line = Path()
+                    line.move(to: targets[0]); line.addLine(to: targets[1])
+                    context.stroke(line, with: .color(.white), style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: engine.points.count == 2 ? [] : [8, 6]))
+                }
+                for point in engine.screenPoints {
+                    context.fill(Path(ellipseIn: CGRect(x: point.x - 7, y: point.y - 7, width: 14, height: 14)), with: .color(accent))
+                    context.stroke(Path(ellipseIn: CGRect(x: point.x - 7, y: point.y - 7, width: 14, height: 14)), with: .color(.white), lineWidth: 2)
+                }
+            }
+            if mode == .box, engine.screenBox.count == 8 {
+                var path = Path()
+                for (a, b) in BoxEstimate.edges {
+                    guard let p = engine.screenBox[a], let q = engine.screenBox[b] else { continue }
+                    path.move(to: p); path.addLine(to: q)
+                }
+                context.stroke(path, with: .color(accent), style: StrokeStyle(lineWidth: 3, lineJoin: .round))
+            }
+        }
+    }
+
+    // MARK: Hints, readouts, controls
+
+    private var hint: String? {
+        if let tracking = engine.trackingHint { return tracking }
+        switch mode {
+        case .distance:
+            return engine.points.isEmpty ? "Aim at the start point and tap +" : (engine.points.count == 1 ? "Aim at the end point and tap +" : nil)
+        case .range:
+            return nil
+        case .box:
+            if engine.floorY == nil { return "Point at the floor around the box" }
+            if engine.isCapturingBox { return "Hold still…" }
+            if engine.boxFailed { return "No box under the crosshair. Step back so the whole box is in view." }
+            return engine.box == nil ? "Aim at the top of the box and tap Measure" : nil
+        default:
+            return nil
+        }
+    }
+
+    @ViewBuilder
+    private var readout: some View {
+        switch mode {
+        case .distance:
+            ReadoutCard(title: "Distance", value: engine.distanceResult.map { MeasureFormat.length($0, units: units) }) {
+                Text("LiDAR · point to point")
+            }
+        case .range:
+            ReadoutCard(title: "Range", value: engine.centerDepth.map { MeasureFormat.length($0, units: units) }) {
+                Label(engine.centerIsHighConfidence ? "High confidence" : "Low confidence",
+                      systemImage: engine.centerIsHighConfidence ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            }
+        case .box:
+            ReadoutCard(title: "Box", value: engine.box.map { MeasureFormat.box($0.dimensions, units: units) },
+                        placeholder: engine.isCapturingBox ? "Measuring…" : "—") {
+                if let box = engine.box {
+                    Text(String(format: "%.1f L  ·  %.1f kg dimensional weight (÷%.0f)",
+                                DimensionalWeight.liters(box.dimensions),
+                                DimensionalWeight.kilograms(box.dimensions, divisor: divisor), divisor))
+                } else {
+                    Text("Length × Width × Height")
+                }
+            }
+        default:
+            EmptyView()
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: 28) {
+            HUDButton(title: "Reset", systemImage: "arrow.counterclockwise") { engine.resetReadings() }
+
+            switch mode {
+            case .distance:
+                HUDButton(title: "Add Point", systemImage: "plus", prominent: true) { engine.addPoint() }
+                    .disabled(engine.hitPoint == nil)
+            case .box:
+                HUDButton(title: "Measure Box", systemImage: "viewfinder", prominent: true) { engine.captureBox() }
+                    .disabled(engine.floorY == nil || engine.isCapturingBox)
+            default:
+                HUDButton(title: "Save", systemImage: "square.and.arrow.down", prominent: true) { save() }
+                    .disabled(engine.centerDepth == nil)
+            }
+
+            // Range saves from the main button; keep the slot so the layout doesn't jump.
+            HUDButton(title: "Save", systemImage: "checkmark") { save() }
+                .disabled(!canSave || mode == .range)
+                .opacity(mode == .range ? 0 : 1)
+                .accessibilityHidden(mode == .range)
+        }
+    }
+
+    private var canSave: Bool {
+        switch mode {
+        case .distance: engine.points.count == 2
+        case .range: engine.centerDepth != nil
+        case .box: engine.box != nil
+        default: false
+        }
+    }
+
+    private func save() {
+        let values: [Double]
+        switch mode {
+        case .distance:
+            guard engine.points.count == 2, let d = engine.distanceResult else { return }
+            values = [d]
+        case .range:
+            guard let d = engine.centerDepth else { return }
+            values = [d]
+        case .box:
+            guard let box = engine.box else { return }
+            values = box.dimensions
+        default:
+            return
+        }
+        history.add(MeasurementRecord(mode: mode, values: values))
+        showSaved = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            showSaved = false
+        }
+    }
+}
+
+struct ARViewContainer: UIViewRepresentable {
+    let engine: ARMeasureEngine
+
+    func makeUIView(context: Context) -> ARView {
+        let view = engine.arView
+        let coaching = ARCoachingOverlayView()
+        coaching.session = view.session
+        coaching.goal = .horizontalPlane
+        coaching.activatesAutomatically = true
+        coaching.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(coaching)
+        return view
+    }
+
+    func updateUIView(_ uiView: ARView, context: Context) {}
+}

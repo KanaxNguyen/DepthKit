@@ -1,0 +1,175 @@
+import ARKit
+import Observation
+import RealityKit
+import simd
+
+/// Runs the LiDAR session and turns frames into readings for the Distance, Range and Box modes.
+@Observable
+final class ARMeasureEngine: NSObject, ARSessionDelegate {
+    static var isSupported: Bool { ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) }
+
+    @ObservationIgnored let arView = ARView(frame: .zero, cameraMode: .ar, automaticallyConfigureSession: false)
+
+    // Readings published at ~20 Hz.
+    var trackingHint: String?
+    var centerDepth: Double?
+    var centerIsHighConfidence = false
+    var hitPoint: SIMD3<Float>?
+    var floorY: Float?
+
+    // Distance mode.
+    var points: [SIMD3<Float>] = []
+    var screenPoints: [CGPoint] = []
+    var screenHit: CGPoint?
+
+    // Box mode.
+    var box: BoxEstimate?
+    var screenBox: [CGPoint?] = []
+    var isCapturingBox = false
+    var boxFailed = false
+
+    @ObservationIgnored private var boxSamples: [BoxEstimate] = []
+    @ObservationIgnored private var boxFramesTried = 0
+    @ObservationIgnored private var lastPublish: TimeInterval = 0
+    @ObservationIgnored private var isRunning = false
+
+    override init() {
+        super.init()
+        arView.session.delegate = self
+        arView.renderOptions.insert(.disableMotionBlur)
+        arView.environment.sceneUnderstanding.options = []
+    }
+
+    func start() {
+        guard Self.isSupported, !isRunning else { return }
+        let configuration = ARWorldTrackingConfiguration()
+        configuration.planeDetection = [.horizontal]
+        configuration.frameSemantics = ARWorldTrackingConfiguration.supportsFrameSemantics(.smoothedSceneDepth)
+            ? [.smoothedSceneDepth] : [.sceneDepth]
+        arView.session.run(configuration)
+        isRunning = true
+    }
+
+    func pause() {
+        arView.session.pause()
+        isRunning = false
+    }
+
+    func resetReadings() {
+        points = []
+        screenPoints = []
+        box = nil
+        screenBox = []
+        boxSamples = []
+        isCapturingBox = false
+        boxFailed = false
+    }
+
+    // MARK: Distance
+
+    /// Adds the point under the crosshair; a third tap starts a new measurement.
+    func addPoint() {
+        guard let hitPoint else { return }
+        if points.count >= 2 { points = [] }
+        points.append(hitPoint)
+    }
+
+    var distanceResult: Double? {
+        if points.count == 2 { return Double(simd_distance(points[0], points[1])) }
+        if points.count == 1, let hitPoint { return Double(simd_distance(points[0], hitPoint)) }
+        return nil
+    }
+
+    // MARK: Box
+
+    func captureBox() {
+        box = nil
+        boxSamples = []
+        boxFramesTried = 0
+        boxFailed = false
+        isCapturingBox = true
+    }
+
+    // MARK: ARSessionDelegate
+
+    func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        updateFloor(frame)
+        if isCapturingBox { sampleBox(frame) }
+
+        guard frame.timestamp - lastPublish > 0.05 else { return }
+        lastPublish = frame.timestamp
+
+        trackingHint = Self.hint(for: frame.camera.trackingState)
+
+        if let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth {
+            let depth = PixelBuffers.floats(depthData.depthMap)
+            let confidence = depthData.confidenceMap.map(PixelBuffers.bytes)
+            centerDepth = PixelBuffers.centerMedian(depth: depth.values, width: depth.width, height: depth.height,
+                                                    confidence: confidence, minConfidence: 1)
+            let strict = PixelBuffers.centerMedian(depth: depth.values, width: depth.width, height: depth.height,
+                                                   confidence: confidence, minConfidence: 2)
+            centerIsHighConfidence = strict != nil
+        }
+
+        let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+        if let result = arView.raycast(from: center, allowing: .estimatedPlane, alignment: .any).first {
+            let t = result.worldTransform.columns.3
+            hitPoint = SIMD3(t.x, t.y, t.z)
+        } else {
+            hitPoint = nil
+        }
+
+        screenPoints = points.compactMap { arView.project($0) }
+        screenHit = hitPoint.flatMap { arView.project($0) }
+        screenBox = box?.corners.map { arView.project($0) } ?? []
+    }
+
+    private func updateFloor(_ frame: ARFrame) {
+        let planes = frame.anchors.compactMap { $0 as? ARPlaneAnchor }.filter { $0.alignment == .horizontal }
+        guard !planes.isEmpty else { return }
+        let floors = planes.filter { $0.classification == .floor }
+        let candidates = floors.isEmpty ? planes : floors
+        floorY = candidates.map { $0.transform.columns.3.y }.min()
+    }
+
+    private func sampleBox(_ frame: ARFrame) {
+        boxFramesTried += 1
+        if let floorY, let depthFrame = Self.depthFrame(from: frame),
+           let estimate = BoxEstimator.estimate(depthFrame, floorY: floorY) {
+            boxSamples.append(estimate)
+        }
+        if boxSamples.count >= 12 {
+            box = BoxEstimator.combine(boxSamples)
+            isCapturingBox = false
+        } else if boxFramesTried >= 90 {
+            isCapturingBox = false
+            boxFailed = true
+        }
+    }
+
+    private static func depthFrame(from frame: ARFrame) -> DepthFrame? {
+        guard let data = frame.smoothedSceneDepth ?? frame.sceneDepth else { return nil }
+        let depth = PixelBuffers.floats(data.depthMap)
+        let confidence = data.confidenceMap.map(PixelBuffers.bytes)
+        let image = frame.camera.imageResolution
+        let sx = Float(depth.width) / Float(image.width)
+        let sy = Float(depth.height) / Float(image.height)
+        var k = frame.camera.intrinsics
+        k[0][0] *= sx; k[2][0] *= sx
+        k[1][1] *= sy; k[2][1] *= sy
+        return DepthFrame(width: depth.width, height: depth.height, depth: depth.values,
+                          confidence: confidence, intrinsics: k, cameraToWorld: frame.camera.transform)
+    }
+
+    private static func hint(for state: ARCamera.TrackingState) -> String? {
+        switch state {
+        case .normal: nil
+        case .notAvailable: "Tracking unavailable"
+        case .limited(.initializing): "Move your iPhone slowly to start"
+        case .limited(.excessiveMotion): "Slow down"
+        case .limited(.insufficientFeatures): "Point at a surface with more detail"
+        case .limited(.relocalizing): "Hold still"
+        case .limited: "Tracking limited"
+        }
+    }
+}
