@@ -38,7 +38,7 @@ struct LabCaptureView: View {
             VStack(spacing: 12) {
                 HintPill(text: engine.isCapturing
                          ? (engine.steps.last ?? "Hold still…")
-                         : "Point at an object, tap Compare, hold still ~4 s")
+                         : "Point at an object within 2 m, tap Compare, hold still ~5 s")
 
                 Spacer()
 

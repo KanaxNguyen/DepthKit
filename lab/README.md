@@ -18,7 +18,7 @@ In DepthKit, open **Measure › Distance › Compare**. Point at an object, tap 
 
 The phone shows the LiDAR and two-camera distances, their difference, and both depth maps right away; no tripod, labels or Mac are needed. Each capture is also saved to Files › DepthKit › LabCaptures with everything the Mac analysis below uses:
 
-- every back camera (`ultrawide.jpg`, `wide.jpg`, `tele.jpg`) with calibration files containing intrinsics, extrinsics in millimeters, and lens distortion tables
+- the wide and ultra-wide cameras (`wide.jpg`, `ultrawide.jpg`), with calibration files containing intrinsics, extrinsics in millimeters, and lens distortion tables. The calibration is read from depth photos, because iOS does not offer per-camera calibration for these photos on iPhone 15 Pro.
 - Apple stereo depth (`apple_stereo_*`)
 - LiDAR depth (`lidar_*`)
 

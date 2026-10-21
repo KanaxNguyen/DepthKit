@@ -3,11 +3,14 @@ import Foundation
 import Observation
 import UIKit
 
-/// One-tap multi-sensor capture for depth experiments. With the iPhone on a tripod it takes, in order:
-/// 1. A photo from every back camera (ultra-wide, wide, telephoto) with full calibration
-///    (intrinsics, extrinsics relative to each other, lens distortion tables).
-/// 2. A photo with Apple's stereo (dual-camera disparity) depth.
-/// 3. A photo with LiDAR depth from the LiDAR depth camera.
+/// One-tap multi-sensor capture for depth experiments. Held still, it takes in order:
+/// 1. A photo from the wide and ultra-wide cameras (Dual Wide virtual device).
+/// 2. A photo with Apple's stereo (dual-camera disparity) depth, wide camera primary.
+/// 3. A second stereo-depth photo with the ultra-wide primary, only to read that camera's calibration.
+///    On iPhone 15 Pro, per-camera calibration is not offered with constituent photos, but every depth
+///    photo carries its primary camera's calibration (intrinsics, extrinsics, lens distortion).
+/// 4. A photo with LiDAR depth from the LiDAR depth camera.
+/// (The Triple Camera's default photo formats have no depth formats, so Dual Wide is used for stereo.)
 /// Everything is saved to Documents/LabCaptures/<time>-<label>/ in sensor orientation (landscape);
 /// image files carry an EXIF orientation flag that analysis code must ignore.
 /// Session work runs on `queue`; published state is only changed on the main actor.
@@ -67,7 +70,7 @@ final class LabCaptureEngine: @unchecked Sendable {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             var files: [String: String] = [:]
 
-            steps.append("Back cameras…")
+            steps.append("Wide + ultra-wide…")
             let multi = try Self.multiCameraDevice()
             try await onQueue { try self.configure(multi, depth: false) }
             try await settle()
@@ -80,7 +83,7 @@ final class LabCaptureEngine: @unchecked Sendable {
                 }
                 files[name] = "\(name).jpg"
             }
-            steps[steps.count - 1] = "Back cameras: \(constituents.count) photos ✓"
+            steps[steps.count - 1] = "Wide + ultra-wide: \(constituents.count) photos ✓"
 
             steps.append("Apple stereo depth…")
             try await onQueue { try self.configure(multi, depth: true) }
@@ -88,10 +91,18 @@ final class LabCaptureEngine: @unchecked Sendable {
             if let photo = try await takePhotos(constituents: []).first, let depth = photo.depthData {
                 try Self.writeImage(photo, to: folder.appendingPathComponent("apple_stereo_rgb.jpg"))
                 stereoMap = try Self.writeDepth(depth, name: "apple_stereo", to: folder)
+                try Self.writeCalibrationIfMissing(depth.cameraCalibrationData, lens: "wide", in: folder)
                 steps[steps.count - 1] = "Apple stereo depth ✓"
             } else {
                 steps[steps.count - 1] = "Apple stereo depth: not delivered"
             }
+
+            steps.append("Camera calibration…")
+            try await onQueue { try self.configure(multi, depth: true, widePrimary: false) }
+            try await settle()
+            let ultraCalibration = try await takePhotos(constituents: []).first?.depthData?.cameraCalibrationData
+            try Self.writeCalibrationIfMissing(ultraCalibration, lens: "ultrawide", in: folder)
+            steps[steps.count - 1] = ultraCalibration == nil ? "Camera calibration: not delivered" : "Camera calibration ✓"
 
             steps.append("LiDAR depth…")
             guard let lidar = AVCaptureDevice.default(.builtInLiDARDepthCamera, for: .video, position: .back) else {
@@ -134,42 +145,119 @@ final class LabCaptureEngine: @unchecked Sendable {
     // MARK: Configuration (session queue)
 
     private static func multiCameraDevice() throws -> AVCaptureDevice {
-        if let triple = AVCaptureDevice.default(.builtInTripleCamera, for: .video, position: .back) { return triple }
         if let dual = AVCaptureDevice.default(.builtInDualWideCamera, for: .video, position: .back) { return dual }
+        if let triple = AVCaptureDevice.default(.builtInTripleCamera, for: .video, position: .back) { return triple }
         throw LabError.message("This iPhone has no multi-camera back module.")
     }
 
-    private func configure(_ device: AVCaptureDevice, depth: Bool) throws {
+    private func configure(_ device: AVCaptureDevice, depth: Bool, widePrimary: Bool = true) throws {
         session.beginConfiguration()
-        defer { session.commitConfiguration() }
-        session.sessionPreset = .photo
-
         if (session.inputs.first as? AVCaptureDeviceInput)?.device != device {
             session.inputs.forEach(session.removeInput)
             let input = try AVCaptureDeviceInput(device: device)
-            guard session.canAddInput(input) else { throw LabError.message("Can't use \(device.localizedName).") }
+            guard session.canAddInput(input) else {
+                session.commitConfiguration()
+                throw LabError.message("Can't use \(device.localizedName).")
+            }
             session.addInput(input)
         }
         if !session.outputs.contains(photoOutput) {
-            guard session.canAddOutput(photoOutput) else { throw LabError.message("Can't add photo output.") }
+            guard session.canAddOutput(photoOutput) else {
+                session.commitConfiguration()
+                throw LabError.message("Can't add photo output.")
+            }
             session.addOutput(photoOutput)
         }
+        // The multi-camera's default photo format has no depth formats, which also turns off depth and
+        // calibration delivery. Choose a depth-capable format explicitly; a session preset set in the same
+        // transaction would override it, so the preset is only a fallback.
+        if device.formats.contains(where: { !$0.supportedDepthDataFormats.isEmpty }) {
+            try Self.selectDepthCapableFormat(device)
+        } else {
+            session.sessionPreset = .photo
+        }
+        session.commitConfiguration()
 
-        if device.deviceType == .builtInLiDARDepthCamera {
-            try Self.selectLiDARFormat(device)
-        } else if let wideZoom = device.virtualDeviceSwitchOverVideoZoomFactors.first {
-            // Make the wide camera primary so the stereo depth lines up with the 1× image.
-            try device.lockForConfiguration()
-            device.videoZoomFactor = CGFloat(truncating: wideZoom)
-            device.unlockForConfiguration()
+        // The photo output reports what it supports only once the new configuration is committed, and
+        // constituent-photo delivery and depth delivery exclude each other, so switch one off before the other.
+        if depth {
+            photoOutput.isVirtualDeviceConstituentPhotoDeliveryEnabled = false
+            photoOutput.isDepthDataDeliveryEnabled = photoOutput.isDepthDataDeliverySupported
+        } else {
+            photoOutput.isDepthDataDeliveryEnabled = false
+            photoOutput.isVirtualDeviceConstituentPhotoDeliveryEnabled = photoOutput.isVirtualDeviceConstituentPhotoDeliverySupported
         }
 
-        photoOutput.isVirtualDeviceConstituentPhotoDeliveryEnabled =
-            !depth && photoOutput.isVirtualDeviceConstituentPhotoDeliverySupported
-        photoOutput.isDepthDataDeliveryEnabled = depth && photoOutput.isDepthDataDeliverySupported
+        if device.deviceType != .builtInLiDARDepthCamera, let wideZoom = device.virtualDeviceSwitchOverVideoZoomFactors.first {
+            // Wide primary lines the stereo depth up with the 1× image; ultra-wide primary (zoom 1) is used
+            // once to read the ultra-wide camera's calibration.
+            try device.lockForConfiguration()
+            device.videoZoomFactor = widePrimary ? CGFloat(truncating: wideZoom) : device.minAvailableVideoZoomFactor
+            device.unlockForConfiguration()
+        }
     }
 
-    private static func selectLiDARFormat(_ device: AVCaptureDevice) throws {
+    /// What this iPhone's photo output supports in each configuration. Takes no photos.
+    func diagnostics() async -> [String: String] {
+        var report: [String: String] = [:]
+        let types: [AVCaptureDevice.DeviceType] = [.builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera,
+                                                   .builtInWideAngleCamera, .builtInLiDARDepthCamera]
+        for type in types {
+            guard let d = AVCaptureDevice.default(type, for: .video, position: .back) else {
+                report["devices.\(type.rawValue)"] = "absent"
+                continue
+            }
+            let withDepth = d.formats.filter { !$0.supportedDepthDataFormats.isEmpty }
+            let largest = withDepth.map { $0.formatDescription.dimensions.width }.max() ?? 0
+            report["devices.\(type.rawValue)"] = "\(d.formats.count) formats, \(withDepth.count) with depth, largest depth-capable width \(largest)"
+        }
+        func record(_ prefix: String, _ device: AVCaptureDevice) {
+            report["\(prefix).device"] = device.deviceType.rawValue
+            report["\(prefix).format"] = "\(device.activeFormat.formatDescription.dimensions.width)x\(device.activeFormat.formatDescription.dimensions.height)"
+            report["\(prefix).formatDepthFormats"] = "\(device.activeFormat.supportedDepthDataFormats.count)"
+            report["\(prefix).zoom"] = "\(device.videoZoomFactor)"
+            report["\(prefix).constituentSupported"] = "\(photoOutput.isVirtualDeviceConstituentPhotoDeliverySupported)"
+            report["\(prefix).constituentEnabled"] = "\(photoOutput.isVirtualDeviceConstituentPhotoDeliveryEnabled)"
+            report["\(prefix).depthSupported"] = "\(photoOutput.isDepthDataDeliverySupported)"
+            report["\(prefix).depthEnabled"] = "\(photoOutput.isDepthDataDeliveryEnabled)"
+            report["\(prefix).calibrationSupported"] = "\(photoOutput.isCameraCalibrationDataDeliverySupported)"
+        }
+        do {
+            let multi = try Self.multiCameraDevice()
+            try await onQueue { try self.configure(multi, depth: false) }
+            try await Task.sleep(for: .milliseconds(500))
+            record("multi.photos", multi)
+            try await onQueue { try self.configure(multi, depth: true) }
+            try await Task.sleep(for: .milliseconds(500))
+            record("multi.depth", multi)
+            if let dualWide = AVCaptureDevice.default(.builtInDualWideCamera, for: .video, position: .back) {
+                try await onQueue { try self.configure(dualWide, depth: false) }
+                try await Task.sleep(for: .milliseconds(500))
+                record("dualWide.photos", dualWide)
+                try await onQueue { try self.configure(dualWide, depth: true) }
+                try await Task.sleep(for: .milliseconds(500))
+                record("dualWide.depth", dualWide)
+                // Both at once: Apple only offers per-camera calibration in some combinations.
+                try await onQueue {
+                    self.photoOutput.isVirtualDeviceConstituentPhotoDeliveryEnabled = true
+                    self.photoOutput.isDepthDataDeliveryEnabled = self.photoOutput.isDepthDataDeliverySupported
+                }
+                try await Task.sleep(for: .milliseconds(500))
+                record("dualWide.both", dualWide)
+            }
+            if let lidar = AVCaptureDevice.default(.builtInLiDARDepthCamera, for: .video, position: .back) {
+                try await onQueue { try self.configure(lidar, depth: true) }
+                try await Task.sleep(for: .milliseconds(500))
+                record("lidar.depth", lidar)
+            }
+        } catch {
+            report["error"] = error.localizedDescription
+        }
+        stop()
+        return report
+    }
+
+    private static func selectDepthCapableFormat(_ device: AVCaptureDevice) throws {
         let formats = device.formats.filter { !$0.supportedDepthDataFormats.isEmpty }
         guard let format = formats.max(by: {
             $0.formatDescription.dimensions.width < $1.formatDescription.dimensions.width
@@ -249,6 +337,12 @@ final class LabCaptureEngine: @unchecked Sendable {
         case .builtInTelephotoCamera?: "tele"
         default: "camera"
         }
+    }
+
+    private static func writeCalibrationIfMissing(_ calibration: AVCameraCalibrationData?, lens: String, in folder: URL) throws {
+        let url = folder.appendingPathComponent("\(lens)_calibration.json")
+        guard let calibration, !FileManager.default.fileExists(atPath: url.path) else { return }
+        try write(CalibrationRecord(calibration), to: url)
     }
 
     private static func writeImage(_ photo: AVCapturePhoto, to url: URL) throws {
