@@ -17,10 +17,12 @@ enum DevSettings {
         static let boxMinPoints = "dev.box.minPoints"
         static let trueDepthFiltering = "dev.trueDepth.filtering"
         static let levelTolerance = "dev.level.tolerance"
+        static let compareShots = "dev.compare.shots"
+        static let liveWindow = "dev.live.window"
 
         static let all = [enabled, showStats, showHeatmap, readoutMinConfidence, readoutWindow, boxMinHeightCm,
                           boxMinConfidence, boxFrames, boxHeightPercentile, boxJumpCm, boxMinPoints,
-                          trueDepthFiltering, levelTolerance]
+                          trueDepthFiltering, levelTolerance, compareShots, liveWindow]
     }
 
     enum Default {
@@ -36,6 +38,8 @@ enum DevSettings {
         static let boxMinPoints = 150
         static let trueDepthFiltering = true
         static let levelTolerance = 0.5
+        static let compareShots = 5
+        static let liveWindow = 20
     }
 
     private static var store: UserDefaults { AppGroup.defaults }
@@ -49,6 +53,9 @@ enum DevSettings {
     static var boxFrames: Int { int(Key.boxFrames, Default.boxFrames) }
     static var trueDepthFiltering: Bool { bool(Key.trueDepthFiltering, Default.trueDepthFiltering) }
     static var levelTolerance: Double { double(Key.levelTolerance, Default.levelTolerance) }
+    static var compareShots: Int { int(Key.compareShots, Default.compareShots) }
+    /// Live readings kept for the ± interval (≈20 per second).
+    static var liveWindow: Int { int(Key.liveWindow, Default.liveWindow) }
 
     static var boxOptions: BoxEstimator.Options {
         var options = BoxEstimator.Options()

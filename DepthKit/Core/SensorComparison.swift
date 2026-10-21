@@ -10,6 +10,11 @@ struct SensorComparison: Equatable {
     var stereoCoverage: Double
     /// Mean scene brightness, 0 (black) … 1 (white).
     var brightness: Double
+    /// Center distance over several shots, with a 95 % confidence interval.
+    var lidarEstimate: Estimate? = nil
+    var stereoEstimate: Estimate? = nil
+    /// Mean gyroscope rotation rate while shooting (rad/s).
+    var shake: Double? = nil
 
     var isDark: Bool { brightness < 0.15 }
 
@@ -24,6 +29,9 @@ struct SensorComparison: Equatable {
             return "The two cameras found no depth at the center. Stereo needs light and surface detail, and works best within about 2 m."
         }
         let percent = Int((abs(difference) * 100).rounded())
+        if let l = lidarEstimate, let s = stereoEstimate, l.margin != nil, s.margin != nil, l.overlaps(s) {
+            return "Two cameras and LiDAR agree within their measurement uncertainty (\(max(percent, 1))% apart at the center)."
+        }
         if percent <= 5 { return "Two cameras agree with LiDAR within \(max(percent, 1))% at the center." }
         if percent <= 15 { return "Two cameras are \(percent)% off LiDAR at the center: usable, not precise." }
         return "Two cameras are \(percent)% off LiDAR here: unreliable. Likely too far, too dark, or too little detail."
@@ -35,13 +43,19 @@ struct SensorComparison: Equatable {
 
     static func compute(lidar: [Float], lidarSize: (width: Int, height: Int),
                         stereo: [Float]?, stereoSize: (width: Int, height: Int)?,
-                        brightness: Double) -> SensorComparison {
-        let lidarCenter = PixelBuffers.centerMedian(depth: lidar, width: lidarSize.width, height: lidarSize.height, window: 9)
+                        brightness: Double, lidarCenters: [Double] = [], stereoCenters: [Double] = [],
+                        shake: Double? = nil) -> SensorComparison {
+        // With several shots, the center distance is the robust mean of the per-shot centers.
+        let lidarEstimate = RobustStats.estimate(lidarCenters)
+        let stereoEstimate = RobustStats.estimate(stereoCenters)
+        let lidarCenter = lidarEstimate?.value
+            ?? PixelBuffers.centerMedian(depth: lidar, width: lidarSize.width, height: lidarSize.height, window: 9)
         guard let stereo, let stereoSize, stereo.count == stereoSize.width * stereoSize.height else {
             return SensorComparison(lidarCenter: lidarCenter, stereoCenter: nil, wholeImageError: nil,
-                                    stereoCoverage: 0, brightness: brightness)
+                                    stereoCoverage: 0, brightness: brightness, lidarEstimate: lidarEstimate, shake: shake)
         }
-        let stereoCenter = PixelBuffers.centerMedian(depth: stereo, width: stereoSize.width, height: stereoSize.height, window: 9)
+        let stereoCenter = stereoEstimate?.value
+            ?? PixelBuffers.centerMedian(depth: stereo, width: stereoSize.width, height: stereoSize.height, window: 9)
 
         // Both maps cover the wide camera's view; compare on the LiDAR grid (nearest neighbour).
         var errorSum = 0.0, compared = 0, stereoValid = 0
@@ -62,6 +76,7 @@ struct SensorComparison: Equatable {
         return SensorComparison(lidarCenter: lidarCenter, stereoCenter: stereoCenter,
                                 wholeImageError: compared > 0 ? errorSum / Double(compared) : nil,
                                 stereoCoverage: total > 0 ? Double(stereoValid) / Double(total) : 0,
-                                brightness: brightness)
+                                brightness: brightness, lidarEstimate: lidarEstimate, stereoEstimate: stereoEstimate,
+                                shake: shake)
     }
 }

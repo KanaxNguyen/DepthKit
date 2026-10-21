@@ -115,9 +115,10 @@ private struct LiDARSessionView: View {
         if let tracking = engine.trackingHint { return tracking }
         switch mode {
         case .distance:
+            if engine.isPlacingPoint { return "Hold steady…" }
             return engine.points.isEmpty ? "Aim at the start point and tap +" : (engine.points.count == 1 ? "Aim at the end point and tap +" : nil)
         case .range:
-            return nil
+            return engine.motion.isSteady ? nil : "Hold steady for a tighter reading"
         case .box:
             if engine.floorY == nil { return "Point at the floor around the box" }
             if engine.isCapturingBox { return "Hold still…" }
@@ -136,9 +137,9 @@ private struct LiDARSessionView: View {
                 Text("Back camera · LiDAR")
             }
         case .range:
-            ReadoutCard(title: "From iPhone", value: engine.centerDepth.map { MeasureFormat.length($0, units: units) }) {
-                Label(engine.centerIsHighConfidence ? "High confidence" : "Low confidence",
-                      systemImage: engine.centerIsHighConfidence ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            ReadoutCard(title: "From iPhone", value: (engine.centerEstimate?.value ?? engine.centerDepth).map { MeasureFormat.length($0, units: units) }) {
+                LiveIntervalLabel(estimate: engine.centerEstimate, steady: engine.motion.isSteady,
+                                  highConfidence: engine.centerIsHighConfidence, units: units)
             }
         case .box:
             ReadoutCard(title: "Box", value: engine.box.map { MeasureFormat.box($0.dimensions, units: units) },
@@ -163,7 +164,7 @@ private struct LiDARSessionView: View {
             switch mode {
             case .distance:
                 HUDButton(title: "Add Point", systemImage: "plus", prominent: true) { engine.addPoint() }
-                    .disabled(engine.hitPoint == nil)
+                    .disabled(engine.hitPoint == nil || engine.isPlacingPoint)
             case .box:
                 HUDButton(title: "Measure Box", systemImage: "viewfinder", prominent: true) { engine.captureBox() }
                     .disabled(engine.floorY == nil || engine.isCapturingBox)
@@ -196,7 +197,7 @@ private struct LiDARSessionView: View {
             guard engine.points.count == 2, let d = engine.distanceResult else { return }
             values = [d]
         case .range:
-            guard let d = engine.centerDepth else { return }
+            guard let d = engine.centerEstimate?.value ?? engine.centerDepth else { return }
             values = [d]
         case .box:
             guard let box = engine.box else { return }
@@ -266,5 +267,38 @@ private struct DevToolbar: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Capture RGB and depth sample")
         }
+    }
+}
+
+/// "± 0.6 cm · 95%" with a steadiness and confidence cue, for live readings.
+struct LiveIntervalLabel: View {
+    let estimate: Estimate?
+    let steady: Bool
+    var highConfidence = true
+    let units: UnitSystem
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: steady ? "hand.raised.fill" : "hand.raised.slash.fill")
+                .foregroundStyle(steady ? Color.green : Color.orange)
+            if let margin = estimate?.margin {
+                Text("± \(MeasureFormat.length(margin, units: units)) · 95%")
+                    .monospacedDigit()
+            } else {
+                Text("Collecting…")
+            }
+            if !highConfidence {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var accessibilityText: String {
+        var parts = [steady ? "Steady" : "Shaking"]
+        if let margin = estimate?.margin { parts.append("plus or minus \(MeasureFormat.length(margin, units: units))") }
+        if !highConfidence { parts.append("low sensor confidence") }
+        return parts.joined(separator: ", ")
     }
 }

@@ -16,9 +16,15 @@ final class TrueDepthEngine: NSObject, AVCaptureDepthDataOutputDelegate {
 
     var distance: Double?
     var isHighQuality = false
+    /// Distance averaged over the last readings, with a 95 % interval.
+    var estimate: Estimate?
+    @ObservationIgnored let motion = MotionMonitor()
+    @ObservationIgnored private var window = RollingWindow(capacity: DevSettings.Default.liveWindow)
     var errorMessage: String?
 
     func start() {
+        motion.start()
+        window = RollingWindow(capacity: max(1, DevSettings.liveWindow))
         queue.async { [self] in
             if !isConfigured { configure() }
             if !session.isRunning { session.startRunning() }
@@ -26,6 +32,7 @@ final class TrueDepthEngine: NSObject, AVCaptureDepthDataOutputDelegate {
     }
 
     func stop() {
+        motion.stop()
         queue.async { [self] in
             if session.isRunning { session.stopRunning() }
         }
@@ -81,6 +88,8 @@ final class TrueDepthEngine: NSObject, AVCaptureDepthDataOutputDelegate {
         DispatchQueue.main.async {
             self.distance = value
             self.isHighQuality = high
+            self.window.add(value)
+            self.estimate = self.window.estimate
         }
     }
 

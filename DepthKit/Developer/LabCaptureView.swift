@@ -38,7 +38,7 @@ struct LabCaptureView: View {
             VStack(spacing: 12) {
                 HintPill(text: engine.isCapturing
                          ? (engine.steps.last ?? "Hold still…")
-                         : "Point at an object within 2 m, tap Compare, hold still ~5 s")
+                         : (engine.motion.isSteady ? "Steady · tap Compare (0.5–5 m)" : "Hold steady, then tap Compare"))
 
                 Spacer()
 
@@ -89,10 +89,19 @@ private struct ComparisonSheet: View {
                     }
                 }
 
-                Section("Distance at the Center") {
-                    LabeledContent("LiDAR (laser)", value: c.lidarCenter.map { MeasureFormat.length($0, units: units) } ?? "—")
+                Section {
+                    LabeledContent("LiDAR (laser)", value: Self.text(c.lidarCenter, c.lidarEstimate, units: units))
                     LabeledContent("Two Cameras (stereo)") {
                         Text(stereoText)
+                    }
+                    if let shake = c.shake {
+                        LabeledContent("Hand", value: MotionMonitor.describe(shake))
+                    }
+                } header: {
+                    Text("Distance at the Center")
+                } footer: {
+                    if let n = c.lidarEstimate?.count, n > 1 {
+                        Text("± is the 95% confidence interval over \(n) shots. It covers hand shake and sensor noise, not calibration bias.")
                     }
                 }
 
@@ -123,9 +132,17 @@ private struct ComparisonSheet: View {
     }
 
     private var stereoText: String {
-        guard let s = c.stereoCenter else { return "No depth" }
-        var text = MeasureFormat.length(s, units: units)
+        guard c.stereoCenter != nil else { return "No depth" }
+        var text = Self.text(c.stereoCenter, c.stereoEstimate, units: units)
         if let d = c.centerDifference { text += String(format: "  (%+.0f%%)", d * 100) }
+        return text
+    }
+
+    /// "1.92 m ± 1.1 cm" when there is an interval, otherwise just the distance.
+    static func text(_ value: Double?, _ estimate: Estimate?, units: UnitSystem) -> String {
+        guard let value else { return "—" }
+        var text = MeasureFormat.length(value, units: units)
+        if let margin = estimate?.margin { text += " ± " + MeasureFormat.length(margin, units: units) }
         return text
     }
 }

@@ -12,7 +12,7 @@ LiDAR, TrueDepth and the back cameras, in one native SwiftUI app with Siri, widg
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-Liquid%20Glass-0A84FF)
 ![ARKit](https://img.shields.io/badge/ARKit-LiDAR-5E5CE6)
 ![App Intents](https://img.shields.io/badge/Siri-App%20Intents-FF375F)
-![Tests](https://img.shields.io/badge/tests-29%20app%20%2B%209%20lab-34C759)
+![Tests](https://img.shields.io/badge/tests-37%20app%20%2B%209%20lab-34C759)
 
 <br/>
 

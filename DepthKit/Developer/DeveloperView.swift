@@ -16,6 +16,8 @@ struct DeveloperView: View {
     @AppStorage(DevSettings.Key.trueDepthFiltering, store: AppGroup.defaults) private var trueDepthFiltering = DevSettings.Default.trueDepthFiltering
     @AppStorage(DevSettings.Key.levelTolerance, store: AppGroup.defaults) private var levelTolerance = DevSettings.Default.levelTolerance
 
+    @AppStorage(DevSettings.Key.compareShots, store: AppGroup.defaults) private var compareShots = DevSettings.Default.compareShots
+    @AppStorage(DevSettings.Key.liveWindow, store: AppGroup.defaults) private var liveWindow = DevSettings.Default.liveWindow
     @State private var dataset = DatasetWriter.summary()
     @State private var confirmDelete = false
     @State private var confirmReset = false
@@ -54,6 +56,16 @@ struct DeveloperView: View {
                 Text("Box Estimator")
             } footer: {
                 Text("Pixels higher than Min Height join the box region while neighbouring depth changes by less than Edge Depth Jump. Height is taken at the chosen percentile to ignore spikes. Turn on Depth Heatmap to see the region in white.")
+            }
+
+            Section {
+                Stepper("Compare Shots per Sensor: \(compareShots)", value: $compareShots, in: 1...15)
+                Stepper("Live Window: \(liveWindow) readings (~\(String(format: "%.1f", Double(liveWindow) / 20)) s)",
+                        value: $liveWindow, in: 5...60, step: 5)
+            } header: {
+                Text("Hand Shake")
+            } footer: {
+                Text("Compare waits for a steady hand before each shot and merges the shots; live distances average the last readings. More shots or a longer window narrow the ± interval but take longer.")
             }
 
             Section("TrueDepth") {

@@ -13,6 +13,7 @@
 		23CD86ECBFA978BF85873312 /* LabCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 890641EF3C1736DC11F46782 /* LabCapture.swift */; };
 		23F69BE208F3D0EDCE902C38 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FC9DF4FA90709595567028D /* SettingsView.swift */; };
 		2444CC01DAE2F9125496D918 /* BoxEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE6E4AC17868EFAED7C9D99 /* BoxEstimatorTests.swift */; };
+		3656C752C6887553068EB113 /* MotionMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 302E98D0ACBD4A0057666DDF /* MotionMonitor.swift */; };
 		392EC0765CA16FE3D65EAC07 /* PixelBuffers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAEA82ACD5566819C022D12E /* PixelBuffers.swift */; };
 		41B62E0FFC6FD44B54542582 /* DatasetWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4FC68D20C399D42211ED742 /* DatasetWriter.swift */; };
 		4457CD218077BD66FADAEDDF /* DepthKitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89C2CBA1F26F782F14C9FEF6 /* DepthKitApp.swift */; };
@@ -39,10 +40,12 @@
 		D4420999BC39FB3840DA4C3A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5ABA1C0AB2F078C3F8A41FFD /* Assets.xcassets */; };
 		D6848DA5A093CF59B9999687 /* HistoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB680320BD4C6D30C362EE26 /* HistoryModel.swift */; };
 		D7C77B11C92886F7EA5E6F48 /* SensorComparison.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBC69632F0FB979F7A027398 /* SensorComparison.swift */; };
+		D9E1445C250915E70D1FA816 /* RobustStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385E54D4F0292CD38EF5DB50 /* RobustStatsTests.swift */; };
 		E0C050BA80CBDF01C8F4EF4C /* TrueDepthMeasureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FAEFD7D23A79C673CF28507 /* TrueDepthMeasureView.swift */; };
 		E8C3FA8773D168BC24FDA696 /* MeasureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE0EB40245D7430E432ACA0F /* MeasureView.swift */; };
 		EDEAF1E525E3DD80F7626517 /* AppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF202673B95D470A7FB8A5C /* AppShortcuts.swift */; };
 		F0E623F39DB369DEF06A9722 /* AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1A91DD31E5FDD90BD841C4 /* AppRouter.swift */; };
+		F400CD20E2CD759FE85A63ED /* RobustStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5045342ED25B668C4F6CFDBB /* RobustStats.swift */; };
 		F57942470B4A77B4865BABF1 /* LevelAndDeveloperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 021F62E2471C6113032B2D7A /* LevelAndDeveloperTests.swift */; };
 		F6235A09B1DB583E32D72B68 /* DeveloperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D84069FD6F004A6CBD2F1191 /* DeveloperView.swift */; };
 /* End PBXBuildFile section */
@@ -84,9 +87,12 @@
 		0AE6E4AC17868EFAED7C9D99 /* BoxEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoxEstimatorTests.swift; sourceTree = "<group>"; };
 		0D45F1CF015748BAE83BB738 /* DepthDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthDebug.swift; sourceTree = "<group>"; };
 		21C58BA0D9D1A8333D45A521 /* ARMeasureEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ARMeasureEngine.swift; sourceTree = "<group>"; };
+		302E98D0ACBD4A0057666DDF /* MotionMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionMonitor.swift; sourceTree = "<group>"; };
+		385E54D4F0292CD38EF5DB50 /* RobustStatsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RobustStatsTests.swift; sourceTree = "<group>"; };
 		3FC9DF4FA90709595567028D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		3FEC27A6E33CE3DD7C13E429 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		48B2E52AFE8119E657E46D4B /* SharedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedStore.swift; sourceTree = "<group>"; };
+		5045342ED25B668C4F6CFDBB /* RobustStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RobustStats.swift; sourceTree = "<group>"; };
 		5587D2491177F2FBE00761D2 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		5ABA1C0AB2F078C3F8A41FFD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5EF35423B09327211B65AF7B /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -129,6 +135,7 @@
 				0AE6E4AC17868EFAED7C9D99 /* BoxEstimatorTests.swift */,
 				9C7CEFC47B834EF536A76851 /* GeometryTests.swift */,
 				021F62E2471C6113032B2D7A /* LevelAndDeveloperTests.swift */,
+				385E54D4F0292CD38EF5DB50 /* RobustStatsTests.swift */,
 				AF7AC8B2184A500625AC2497 /* StoreAndFormatTests.swift */,
 			);
 			path = DepthKitTests;
@@ -201,6 +208,7 @@
 				A71D12E647501A0931388AB7 /* LevelView.swift */,
 				03BA064740F653C85919D2EF /* LiDARMeasureView.swift */,
 				DE0EB40245D7430E432ACA0F /* MeasureView.swift */,
+				302E98D0ACBD4A0057666DDF /* MotionMonitor.swift */,
 				CAF0377C0B1082858D3200F1 /* TrueDepthEngine.swift */,
 				8FAEFD7D23A79C673CF28507 /* TrueDepthMeasureView.swift */,
 			);
@@ -225,6 +233,7 @@
 				0D45F1CF015748BAE83BB738 /* DepthDebug.swift */,
 				8D37BC05493F160A696BF436 /* Geometry.swift */,
 				BAEA82ACD5566819C022D12E /* PixelBuffers.swift */,
+				5045342ED25B668C4F6CFDBB /* RobustStats.swift */,
 				EBC69632F0FB979F7A027398 /* SensorComparison.swift */,
 			);
 			path = Core;
@@ -397,7 +406,9 @@
 				6D0995B2EA30658C5AA3E91A /* LiDARMeasureView.swift in Sources */,
 				E8C3FA8773D168BC24FDA696 /* MeasureView.swift in Sources */,
 				5FDB063288C94B7B280D9D8A /* Models.swift in Sources */,
+				3656C752C6887553068EB113 /* MotionMonitor.swift in Sources */,
 				392EC0765CA16FE3D65EAC07 /* PixelBuffers.swift in Sources */,
+				F400CD20E2CD759FE85A63ED /* RobustStats.swift in Sources */,
 				AB171D228E827471DA560B0D /* RootView.swift in Sources */,
 				D7C77B11C92886F7EA5E6F48 /* SensorComparison.swift in Sources */,
 				23F69BE208F3D0EDCE902C38 /* SettingsView.swift in Sources */,
@@ -414,6 +425,7 @@
 				2444CC01DAE2F9125496D918 /* BoxEstimatorTests.swift in Sources */,
 				B09252F0BAD1DB8BB929A06F /* GeometryTests.swift in Sources */,
 				F57942470B4A77B4865BABF1 /* LevelAndDeveloperTests.swift in Sources */,
+				D9E1445C250915E70D1FA816 /* RobustStatsTests.swift in Sources */,
 				BAE719B24349DBBD941D5D5A /* StoreAndFormatTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

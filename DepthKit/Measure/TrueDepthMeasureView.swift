@@ -34,9 +34,9 @@ private struct TrueDepthSessionView: View {
                     HintPill(text: engine.errorMessage ?? "Front camera · works best from 20 cm to 1 m")
                 }
                 Spacer()
-                ReadoutCard(title: "From iPhone", value: engine.distance.map { MeasureFormat.length($0, units: units) }) {
-                    Label(engine.isHighQuality ? "High quality depth" : "Low quality depth",
-                          systemImage: engine.isHighQuality ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                ReadoutCard(title: "From iPhone", value: (engine.estimate?.value ?? engine.distance).map { MeasureFormat.length($0, units: units) }) {
+                    LiveIntervalLabel(estimate: engine.estimate, steady: engine.motion.isSteady,
+                                      highConfidence: engine.isHighQuality, units: units)
                 }
                 HUDButton(title: "Save", systemImage: "square.and.arrow.down", prominent: true) { save() }
                     .disabled(engine.distance == nil)
@@ -52,7 +52,7 @@ private struct TrueDepthSessionView: View {
     }
 
     private func save() {
-        guard let distance = engine.distance else { return }
+        guard let distance = engine.estimate?.value ?? engine.distance else { return }
         history.add(MeasurementRecord(mode: .near, values: [distance]))
         showSaved = true
         Task {

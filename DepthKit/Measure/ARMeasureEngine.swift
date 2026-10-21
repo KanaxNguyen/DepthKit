@@ -14,11 +14,16 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
     var trackingHint: String?
     var centerDepth: Double?
     var centerIsHighConfidence = false
+    /// Center distance averaged over the last readings, with a 95 % interval (steadies a shaking hand).
+    var centerEstimate: Estimate?
+    @ObservationIgnored let motion = MotionMonitor()
     var hitPoint: SIMD3<Float>?
     var floorY: Float?
 
     // Distance mode.
     var points: [SIMD3<Float>] = []
+    /// True while a tapped point is being averaged over several frames.
+    var isPlacingPoint = false
     var screenPoints: [CGPoint] = []
     var screenHit: CGPoint?
 
@@ -38,6 +43,9 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
     @ObservationIgnored private var boxOptions = BoxEstimator.Options()
     @ObservationIgnored private var boxFramesWanted = DevSettings.Default.boxFrames
     @ObservationIgnored private var lastRegion: Set<Int> = []
+    @ObservationIgnored private var centerWindow = RollingWindow(capacity: DevSettings.Default.liveWindow)
+    @ObservationIgnored private var pointSamples: [SIMD3<Float>] = []
+    private static let pointSampleCount = 8
     @ObservationIgnored private var pendingCaptureMode: MeasureMode?
     @ObservationIgnored private var lastPublish: TimeInterval = 0
     @ObservationIgnored private var isRunning = false
@@ -56,16 +64,22 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
         configuration.frameSemantics = ARWorldTrackingConfiguration.supportsFrameSemantics(.smoothedSceneDepth)
             ? [.smoothedSceneDepth] : [.sceneDepth]
         arView.session.run(configuration)
+        motion.start()
         isRunning = true
     }
 
     func pause() {
         arView.session.pause()
+        motion.stop()
         isRunning = false
     }
 
     func resetReadings() {
         points = []
+        pointSamples = []
+        isPlacingPoint = false
+        centerWindow.reset()
+        centerEstimate = nil
         screenPoints = []
         box = nil
         screenBox = []
@@ -77,11 +91,20 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
 
     // MARK: Distance
 
-    /// Adds the point under the crosshair; a third tap starts a new measurement.
+    /// Adds the point under the crosshair, averaged over the next few frames so a shaking hand doesn't
+    /// move it; a third tap starts a new measurement.
     func addPoint() {
-        guard let hitPoint else { return }
+        guard hitPoint != nil, !isPlacingPoint else { return }
         if points.count >= 2 { points = [] }
-        points.append(hitPoint)
+        pointSamples = []
+        isPlacingPoint = true
+    }
+
+    /// Per-axis median of the sampled hit points.
+    static func medianPoint(_ samples: [SIMD3<Float>]) -> SIMD3<Float>? {
+        guard !samples.isEmpty else { return nil }
+        func med(_ values: [Float]) -> Float { values.sorted()[values.count / 2] }
+        return SIMD3(med(samples.map(\.x)), med(samples.map(\.y)), med(samples.map(\.z)))
     }
 
     var distanceResult: Double? {
@@ -133,6 +156,9 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
                                                     window: window)
             centerIsHighConfidence = PixelBuffers.centerMedian(depth: depth.values, width: depth.width, height: depth.height,
                                                                confidence: confidence, minConfidence: 2, window: window) != nil
+            centerWindow.capacity = max(1, DevSettings.liveWindow)
+            centerWindow.add(centerDepth)
+            centerEstimate = centerWindow.estimate
             stats = DevSettings.showStats ? DepthStats.compute(depth: depth.values, confidence: confidence) : nil
             debugImage = DevSettings.showHeatmap
                 ? DepthColormap.image(depth: depth.values, width: depth.width, height: depth.height,
@@ -146,6 +172,13 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
             hitPoint = SIMD3(t.x, t.y, t.z)
         } else {
             hitPoint = nil
+        }
+        if isPlacingPoint, let hitPoint {
+            pointSamples.append(hitPoint)
+            if pointSamples.count >= Self.pointSampleCount, let point = Self.medianPoint(pointSamples) {
+                points.append(point)
+                isPlacingPoint = false
+            }
         }
 
         screenPoints = points.compactMap { arView.project($0) }
