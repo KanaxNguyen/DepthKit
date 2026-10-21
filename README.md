@@ -12,7 +12,7 @@ LiDAR, TrueDepth and the back cameras, in one native SwiftUI app with Siri, widg
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-Liquid%20Glass-0A84FF)
 ![ARKit](https://img.shields.io/badge/ARKit-LiDAR-5E5CE6)
 ![App Intents](https://img.shields.io/badge/Siri-App%20Intents-FF375F)
-![Tests](https://img.shields.io/badge/tests-37%20app%20%2B%209%20lab-34C759)
+![Tests](https://img.shields.io/badge/tests-38%20app%20%2B%209%20lab-34C759)
 
 <br/>
 
@@ -90,6 +90,27 @@ Can the cameras alone measure depth as well as LiDAR, and what happens at night?
 | Depth Pro | one image | Bochkovskii et al. (Apple), ICLR 2025 |
 | Prompt Depth Anything | image + LiDAR prompt | Lin et al., CVPR 2025 |
 
+## 📊 Field results
+
+iPhone 15 Pro Max, indoors, hand-held, **Distance › Compare** (5 shots per sensor):
+
+| LiDAR | Two cameras (Apple stereo) | Difference | Farthest stereo depth in the frame |
+|---:|---:|---:|---:|
+| 0.42 m | 0.40 m | −3% | 0.44 m |
+| 0.82 m | 0.82 m | 0% | 2.06 m |
+| 1.97 m | 1.92 m | −3% | 2.52 m |
+| 2.13 m | 1.91 m | −10% | 2.45 m |
+| 3.20 m | 1.24 m | **−61%** | 1.38 m |
+| 3.56 m | 1.52 m | **−57%** | 1.65 m |
+
+What the numbers show:
+
+- Up to about 2 m, Apple's two-camera depth stays within about 3% of LiDAR.
+- Beyond about 2.5 m it does not degrade gracefully; it **saturates**. The stereo map never goes past about 2.5 m, and iOS labels it `depthDataAccuracy = relative`: the depth is made for Portrait photos, not for measuring.
+- Physics adds to this. The wide and ultra-wide cameras are about 1 cm apart, so at 4 m the disparity is only 1–2 px, and depth error grows with the square of the distance.
+
+Compare now detects this case and explains it instead of reporting it as an error.
+
 ## 🏗️ Architecture
 
 ```
@@ -134,7 +155,7 @@ xcodebuild -project DepthKit.xcodeproj -scheme DepthKit \
 - Box mode expects a roughly rectangular box resting on a floor or table that ARKit has detected.
 - Dark, shiny or transparent surfaces return less LiDAR depth.
 - Infrared-blocking window film is designed to absorb the 900–1000 nm band, which includes LiDAR's 940 nm.
-- Results are estimates; accuracy figures will be added after field tests. Use a tape measure for anything critical.
+- Two-camera depth is only useful up to about 2–2.5 m (see Field results). Results are estimates; use a tape measure for anything critical.
 
 ## 🗺️ Roadmap
 

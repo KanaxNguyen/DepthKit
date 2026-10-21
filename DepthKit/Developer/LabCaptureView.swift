@@ -109,6 +109,9 @@ private struct ComparisonSheet: View {
                     LabeledContent("Average Difference",
                                    value: c.wholeImageError.map { String(format: "%.0f%%", $0 * 100) } ?? "—")
                     LabeledContent("Stereo Found Depth In", value: String(format: "%.0f%% of the image", c.stereoCoverage * 100))
+                    if let far = c.stereoFarthest {
+                        LabeledContent("Farthest Stereo Depth", value: MeasureFormat.length(far, units: units))
+                    }
                     LabeledContent("Brightness", value: c.isDark ? "Dark" : String(format: "%.0f%%", c.brightness * 100))
                 } header: {
                     Text("Whole Image")

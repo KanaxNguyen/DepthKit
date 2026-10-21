@@ -15,6 +15,15 @@ struct SensorComparison: Equatable {
     var stereoEstimate: Estimate? = nil
     /// Mean gyroscope rotation rate while shooting (rad/s).
     var shake: Double? = nil
+    /// Farthest distance in the stereo map (98th percentile).
+    var stereoFarthest: Double? = nil
+
+    /// Apple's two-camera depth is made for Portrait photos: relative, and it stops growing at a few meters
+    /// (about 2.5 m on iPhone 15 Pro). A target beyond the farthest stereo value is out of its range.
+    var isBeyondStereoRange: Bool {
+        guard let l = lidarCenter, let s = stereoCenter, let far = stereoFarthest else { return false }
+        return s < 0.8 * l && far < 0.85 * l
+    }
 
     var isDark: Bool { brightness < 0.15 }
 
@@ -29,6 +38,9 @@ struct SensorComparison: Equatable {
             return "The two cameras found no depth at the center. Stereo needs light and surface detail, and works best within about 2 m."
         }
         let percent = Int((abs(difference) * 100).rounded())
+        if isBeyondStereoRange, let l = lidarCenter, let far = stereoFarthest {
+            return String(format: "Beyond the two-camera range. Apple's two-camera depth is built for Portrait photos and stops growing at about %.1f m here, so it can't reach a target at %.1f m. LiDAR still can (up to about 5 m).", far, l)
+        }
         if let l = lidarEstimate, let s = stereoEstimate, l.margin != nil, s.margin != nil, l.overlaps(s) {
             return "Two cameras and LiDAR agree within their measurement uncertainty (\(max(percent, 1))% apart at the center)."
         }
@@ -73,10 +85,15 @@ struct SensorComparison: Equatable {
             }
         }
         let total = lidarSize.width * lidarSize.height
+        var farSamples: [Double] = []
+        farSamples.reserveCapacity(stereo.count / 16 + 1)
+        for i in stride(from: 0, to: stereo.count, by: 16) where stereo[i].isFinite && stereo[i] > 0 {
+            farSamples.append(Double(stereo[i]))
+        }
         return SensorComparison(lidarCenter: lidarCenter, stereoCenter: stereoCenter,
                                 wholeImageError: compared > 0 ? errorSum / Double(compared) : nil,
                                 stereoCoverage: total > 0 ? Double(stereoValid) / Double(total) : 0,
                                 brightness: brightness, lidarEstimate: lidarEstimate, stereoEstimate: stereoEstimate,
-                                shake: shake)
+                                shake: shake, stereoFarthest: Geometry.percentile(farSamples, 0.98))
     }
 }

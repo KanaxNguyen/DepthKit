@@ -6,10 +6,11 @@ import UIKit
 /// One-tap multi-sensor capture for depth experiments. Held still, it takes in order:
 /// 1. A photo from the wide and ultra-wide cameras (Dual Wide virtual device).
 /// 2. A photo with Apple's stereo (dual-camera disparity) depth, wide camera primary.
-/// 3. A second stereo-depth photo with the ultra-wide primary, only to read that camera's calibration.
-///    On iPhone 15 Pro, per-camera calibration is not offered with constituent photos, but every depth
-///    photo carries its primary camera's calibration (intrinsics, extrinsics, lens distortion).
-/// 4. A photo with LiDAR depth from the LiDAR depth camera.
+///    Its calibration (intrinsics, lens distortion) is saved as the wide camera's. On iPhone 15 Pro the
+///    ultra-wide's calibration is not available: neither constituent photos nor ultra-wide-primary depth
+///    photos deliver it.
+/// 3. Photos with LiDAR depth from the LiDAR depth camera.
+/// Apple's two-camera depth is Portrait-style: `depthDataAccuracy` is relative and it saturates around 2.5 m.
 /// (The Triple Camera's default photo formats have no depth formats, so Dual Wide is used for stereo.)
 /// Everything is saved to Documents/LabCaptures/<time>-<label>/ in sensor orientation (landscape);
 /// image files carry an EXIF orientation flag that analysis code must ignore.
@@ -111,12 +112,6 @@ final class LabCaptureEngine: @unchecked Sendable {
                 steps[steps.count - 1] = "Two cameras: no depth delivered"
             }
 
-            steps.append("Camera calibration…")
-            try await onQueue { try self.configure(multi, depth: true, widePrimary: false) }
-            try await settle()
-            let ultraCalibration = try await takePhotos(constituents: []).first?.depthData?.cameraCalibrationData
-            try Self.writeCalibrationIfMissing(ultraCalibration, lens: "ultrawide", in: folder)
-            steps[steps.count - 1] = ultraCalibration == nil ? "Camera calibration: not delivered" : "Camera calibration ✓"
 
             steps.append("LiDAR depth…")
             guard let lidar = AVCaptureDevice.default(.builtInLiDARDepthCamera, for: .video, position: .back) else {
@@ -172,7 +167,7 @@ final class LabCaptureEngine: @unchecked Sendable {
         throw LabError.message("This iPhone has no multi-camera back module.")
     }
 
-    private func configure(_ device: AVCaptureDevice, depth: Bool, widePrimary: Bool = true) throws {
+    private func configure(_ device: AVCaptureDevice, depth: Bool) throws {
         session.beginConfiguration()
         if (session.inputs.first as? AVCaptureDeviceInput)?.device != device {
             session.inputs.forEach(session.removeInput)
@@ -211,10 +206,9 @@ final class LabCaptureEngine: @unchecked Sendable {
         }
 
         if device.deviceType != .builtInLiDARDepthCamera, let wideZoom = device.virtualDeviceSwitchOverVideoZoomFactors.first {
-            // Wide primary lines the stereo depth up with the 1× image; ultra-wide primary (zoom 1) is used
-            // once to read the ultra-wide camera's calibration.
+            // Make the wide camera primary so the stereo depth lines up with the 1× image.
             try device.lockForConfiguration()
-            device.videoZoomFactor = widePrimary ? CGFloat(truncating: wideZoom) : device.minAvailableVideoZoomFactor
+            device.videoZoomFactor = CGFloat(truncating: wideZoom)
             device.unlockForConfiguration()
         }
     }

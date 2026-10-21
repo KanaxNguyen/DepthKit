@@ -51,6 +51,20 @@ final class RobustStatsTests: XCTestCase {
         XCTAssertEqual(p.z, 1, accuracy: 0.002)
     }
 
+    func testTargetBeyondStereoRangeIsExplainedNotScored() {
+        // Real capture: LiDAR 3.56 m, Apple stereo tops out near 1.65 m.
+        let lidar = [Float](repeating: 3.56, count: 16 * 12)
+        var stereo = [Float](repeating: 1.52, count: 16 * 12)
+        stereo[0] = 1.65
+        let c = SensorComparison.compute(lidar: lidar, lidarSize: (16, 12), stereo: stereo, stereoSize: (16, 12), brightness: 0.5)
+        XCTAssertTrue(c.isBeyondStereoRange)
+        XCTAssertTrue(c.verdict.hasPrefix("Beyond the two-camera range"))
+
+        let near = SensorComparison.compute(lidar: [Float](repeating: 1.97, count: 16 * 12), lidarSize: (16, 12),
+                                            stereo: [Float](repeating: 1.92, count: 16 * 12), stereoSize: (16, 12), brightness: 0.5)
+        XCTAssertFalse(near.isBeyondStereoRange)
+    }
+
     func testCompareUsesShotIntervals() {
         let lidar = [Float](repeating: 1.97, count: 16 * 12)
         let stereo = [Float](repeating: 1.92, count: 16 * 12)
