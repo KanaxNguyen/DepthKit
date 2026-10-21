@@ -112,6 +112,16 @@ What the numbers show:
 
 Compare now detects this case and explains it instead of reporting it as an error.
 
+With 5 steady-hand shots per sensor, each value is shown as mean ± 95% CI:
+
+| LiDAR | Two cameras | Reading |
+|---:|---:|---|
+| 44.7 cm ± 0.1 cm | 42.3 cm ± 0.2 cm (−5%) | **Bias.** Both intervals are tight but don't overlap; repeating the shot can't remove a systematic offset |
+| 2.06 m ± 0.1 cm | 2.24 m ± 20.1 cm (+9%) | **Noise.** Stereo scatter grows with distance; the intervals overlap, so they agree within uncertainty |
+| 3.90 m ± 0.4 cm | 1.92 m ± 78.1 cm (−51%) | **Out of range.** Saturated stereo, flagged as beyond the two-camera range |
+
+LiDAR stays within a few millimeters from shot to shot over the whole range.
+
 ### Reaching farther with the camera: Slide
 
 A wider baseline fixes the range problem. In **Distance › Slide** you aim at a target, tap Start and slide the iPhone sideways. ARKit world tracking gives the pose of every frame, so the baseline becomes 15–25 cm instead of 1 cm.
