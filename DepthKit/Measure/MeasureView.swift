@@ -10,7 +10,8 @@ struct MeasureView: View {
             if router.tool == .distance && router.distanceMethod == .compare {
                 LabCaptureView(embedded: true)
             } else if router.mode.usesLiDAR {
-                LiDARMeasureView(mode: router.mode)
+                LiDARMeasureView(mode: router.mode,
+                                 slide: router.tool == .distance && router.distanceMethod == .slide)
             } else if router.mode == .near {
                 TrueDepthMeasureView()
             } else {
@@ -33,7 +34,7 @@ struct MeasureView: View {
     }
 }
 
-/// Two Points / From iPhone, plus a camera-flip button to choose the back LiDAR or the front TrueDepth camera.
+/// Distance methods, plus (for From iPhone) a camera-flip button to choose the back LiDAR or the front TrueDepth.
 private struct DistanceMethodBar: View {
     @Binding var method: DistanceMethod
     @Binding var sensor: DistanceSensor
@@ -41,13 +42,7 @@ private struct DistanceMethodBar: View {
     private var canFlip: Bool { ARMeasureEngine.isSupported && TrueDepthEngine.isSupported }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Picker("Method", selection: $method) {
-                ForEach(DistanceMethod.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: method == .fromPhone ? 270 : 330)
-
+        VStack(spacing: 8) {
             if method == .fromPhone {
                 Button {
                     withAnimation(.snappy) { sensor = sensor == .lidar ? .trueDepth : .lidar }
@@ -60,11 +55,19 @@ private struct DistanceMethodBar: View {
                 .buttonStyle(.plain)
                 .disabled(!canFlip)
                 .accessibilityLabel(sensor == .lidar ? "Using back LiDAR. Switch to front TrueDepth" : "Using front TrueDepth. Switch to back LiDAR")
+                .padding(.horizontal, 6)
+                .hudBackground(in: Capsule())
                 .transition(.opacity)
             }
+
+            Picker("Method", selection: $method) {
+                ForEach(DistanceMethod.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 360)
+            .padding(6)
+            .hudBackground(in: Capsule())
         }
-        .padding(6)
-        .hudBackground(in: Capsule())
         .animation(.snappy, value: method)
     }
 }

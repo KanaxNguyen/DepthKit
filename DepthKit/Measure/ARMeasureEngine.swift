@@ -33,6 +33,16 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
     var isCapturingBox = false
     var boxFailed = false
 
+    // Slide: distance from the cameras alone, by moving the iPhone sideways (LiDAR is only the reference).
+    enum SlideState { case idle, sliding, done }
+    var slideState: SlideState = .idle
+    /// How far the iPhone has moved since Start, in meters.
+    var slideBaseline: Double = 0
+    var slideEstimate: Estimate?
+    /// LiDAR's distance to the same target when Start was tapped, for comparison.
+    var slideLidarReference: Double?
+    var slideMessage: String?
+
     // Developer tools.
     var stats: DepthStats?
     var debugImage: CGImage?
@@ -45,6 +55,14 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
     @ObservationIgnored private var lastRegion: Set<Int> = []
     @ObservationIgnored private var centerWindow = RollingWindow(capacity: DevSettings.Default.liveWindow)
     @ObservationIgnored private var pointSamples: [SIMD3<Float>] = []
+    @ObservationIgnored private var slideReference: CameraView?
+    @ObservationIgnored private var slideSamples: [Double] = []
+    @ObservationIgnored private var pendingSlideStart = false
+    @ObservationIgnored private var slideFrameCount = 0
+    /// Camera images are matched at half resolution (960 × 720): plenty for ~20 px disparities.
+    static let slideDownsample = 2
+    static let slideMinBaseline = 0.08
+    static let slideWantedSamples = 15
     private static let pointSampleCount = 8
     @ObservationIgnored private var pendingCaptureMode: MeasureMode?
     @ObservationIgnored private var lastPublish: TimeInterval = 0
@@ -113,6 +131,93 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
         return nil
     }
 
+    // MARK: Slide
+
+    func startSlide() {
+        resetSlide()
+        pendingSlideStart = true
+    }
+
+    func finishSlide() {
+        slideState = .done
+    }
+
+    func resetSlide() {
+        slideState = .idle
+        slideReference = nil
+        slideSamples = []
+        slideEstimate = nil
+        slideBaseline = 0
+        slideLidarReference = nil
+        slideMessage = nil
+        pendingSlideStart = false
+    }
+
+    private func beginSlide(_ frame: ARFrame) {
+        guard case .normal = frame.camera.trackingState, let view = Self.cameraView(frame) else {
+            slideMessage = "Move slowly until tracking is ready, then tap Start"
+            return
+        }
+        let pixel = Self.centerPixel(view)
+        if let patch = Triangulation.patch(view.image, at: pixel, radius: Triangulation.Options().patchRadius),
+           Triangulation.variance(patch) < Triangulation.Options().minTexture {
+            slideMessage = "Not enough detail here. Aim at a textured spot."
+            return
+        }
+        slideReference = view
+        slideLidarReference = centerEstimate?.value ?? centerDepth
+        slideState = .sliding
+    }
+
+    private func updateSlide(_ frame: ARFrame) {
+        guard let reference = slideReference else { return }
+        guard case .normal = frame.camera.trackingState else {
+            slideMessage = "Tracking limited: slide more slowly"
+            return
+        }
+        guard let view = Self.cameraView(frame) else { return }
+        slideBaseline = simd_distance(reference.center, view.center)
+        guard slideBaseline >= Self.slideMinBaseline else { return }
+
+        switch Triangulation.distance(from: reference, to: view, at: Self.centerPixel(reference)) {
+        case .success(let match):
+            slideSamples.append(match.distance)
+            slideEstimate = RobustStats.estimate(slideSamples)
+            slideMessage = nil
+            if slideSamples.count >= Self.slideWantedSamples { slideState = .done }
+        case .failure(.outOfView):
+            slideMessage = "Keep the target inside the frame"
+        case .failure(.ambiguous):
+            slideMessage = "Repeating pattern: aim at something unique"
+        case .failure(.noTexture):
+            slideMessage = "Not enough detail here. Aim at a textured spot."
+        case .failure(.noMatch):
+            slideMessage = "Lost the target: slide slowly, keep it in the crosshair"
+        }
+    }
+
+    /// The current camera image (gray, half resolution) with intrinsics and pose, for motion stereo.
+    static func cameraView(_ frame: ARFrame) -> CameraView? {
+        let factor = slideDownsample
+        guard let image = PixelBuffers.luma(frame.capturedImage, factor: factor) else { return nil }
+        let k = frame.camera.intrinsics
+        let s = 1 / Double(factor)
+        // Pixel centers move with block averaging: x' = (x + 0.5) / factor − 0.5.
+        let intrinsics = simd_double3x3(columns: (
+            SIMD3(Double(k[0][0]) * s, 0, 0),
+            SIMD3(0, Double(k[1][1]) * s, 0),
+            SIMD3((Double(k[2][0]) + 0.5) * s - 0.5, (Double(k[2][1]) + 0.5) * s - 0.5, 1)))
+        let t = frame.camera.transform
+        let pose = simd_double4x4(columns: (SIMD4<Double>(t.columns.0), SIMD4<Double>(t.columns.1),
+                                            SIMD4<Double>(t.columns.2), SIMD4<Double>(t.columns.3)))
+        return CameraView(image: image, intrinsics: intrinsics, cameraToWorld: pose)
+    }
+
+    /// The crosshair sits at the center of the camera image.
+    static func centerPixel(_ view: CameraView) -> SIMD2<Double> {
+        SIMD2(Double(view.image.width - 1) / 2, Double(view.image.height - 1) / 2)
+    }
+
     // MARK: Box
 
     func captureBox() {
@@ -137,6 +242,14 @@ final class ARMeasureEngine: NSObject, ARSessionDelegate {
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
         updateFloor(frame)
         if isCapturingBox { sampleBox(frame) }
+        if pendingSlideStart {
+            pendingSlideStart = false
+            beginSlide(frame)
+        }
+        if slideState == .sliding {
+            slideFrameCount += 1
+            if slideFrameCount % 3 == 0 { updateSlide(frame) }
+        }
         if let mode = pendingCaptureMode {
             pendingCaptureMode = nil
             saveSample(frame, mode: mode)

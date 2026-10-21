@@ -12,7 +12,7 @@ LiDAR, TrueDepth and the back cameras, in one native SwiftUI app with Siri, widg
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-Liquid%20Glass-0A84FF)
 ![ARKit](https://img.shields.io/badge/ARKit-LiDAR-5E5CE6)
 ![App Intents](https://img.shields.io/badge/Siri-App%20Intents-FF375F)
-![Tests](https://img.shields.io/badge/tests-38%20app%20%2B%209%20lab-34C759)
+![Tests](https://img.shields.io/badge/tests-43%20app%20%2B%209%20lab-34C759)
 
 <br/>
 
@@ -40,6 +40,7 @@ LiDAR, TrueDepth and the back cameras, in one native SwiftUI app with Siri, widg
 | **Distance · Two Points** | LiDAR | Distance between any two surfaces |
 | **Distance · From iPhone** | LiDAR (back) / TrueDepth (front) | Distance to whatever is under the crosshair, with a confidence badge |
 | **Distance · Compare** | LiDAR + two cameras | Stereo vs LiDAR at the center and across the image, plus a plain-language verdict |
+| **Distance · Slide** | Camera + motion | Long-range distance from the camera alone: slide the iPhone ~20 cm sideways and it triangulates the target, with LiDAR shown for comparison |
 | **Box** | LiDAR | L × W × H, liters, dimensional weight (÷5000 / ÷6000) and a 3D wireframe over the camera |
 | **Level** | Motion | Edge or surface level, directional hint, slope %, Set Zero |
 
@@ -110,6 +111,21 @@ What the numbers show:
 - Physics adds to this. The wide and ultra-wide cameras are about 1 cm apart, so at 4 m the disparity is only 1–2 px, and depth error grows with the square of the distance.
 
 Compare now detects this case and explains it instead of reporting it as an error.
+
+### Reaching farther with the camera: Slide
+
+A wider baseline fixes the range problem. In **Distance › Slide** you aim at a target, tap Start and slide the iPhone sideways. ARKit world tracking gives the pose of every frame, so the baseline becomes 15–25 cm instead of 1 cm.
+
+[`Triangulation.swift`](DepthKit/Core/Triangulation.swift) then:
+
+1. sweeps candidate distances along the first view's center ray, spaced evenly in inverse depth
+2. projects each one into the current frame
+3. scores the image patch there with normalized cross-correlation
+4. keeps the best-scoring distance, refined to sub-sample precision with a parabola
+
+Flat walls and repeating patterns are rejected rather than guessed. Every valid frame adds a reading, and the result is shown as a mean ± 95% CI next to LiDAR. Unit tests on synthetic walls at 4, 6 and 8 m with a 20 cm slide recover the distance within 3%.
+
+The distance comes from the camera images. The poses come from ARKit's visual-inertial tracking, which on LiDAR iPhones may also draw on the LiDAR.
 
 ## 🏗️ Architecture
 

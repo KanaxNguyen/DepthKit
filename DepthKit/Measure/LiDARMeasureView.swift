@@ -4,10 +4,12 @@ import SwiftUI
 
 struct LiDARMeasureView: View {
     let mode: MeasureMode
+    /// Distance › Slide: camera-only motion stereo, with LiDAR as the reference.
+    var slide = false
 
     var body: some View {
         if ARMeasureEngine.isSupported {
-            LiDARSessionView(mode: mode)
+            LiDARSessionView(mode: mode, slide: slide)
         } else {
             SensorUnavailableView(
                 title: "LiDAR Not Available",
@@ -19,6 +21,7 @@ struct LiDARMeasureView: View {
 
 private struct LiDARSessionView: View {
     let mode: MeasureMode
+    let slide: Bool
 
     @Environment(HistoryModel.self) private var history
     @AppStorage(SharedSettings.unitsKey, store: AppGroup.defaults) private var units: UnitSystem = .metric
@@ -75,6 +78,7 @@ private struct LiDARSessionView: View {
         .onAppear { engine.start() }
         .onDisappear { engine.pause() }
         .onChange(of: mode) { engine.resetReadings() }
+        .onChange(of: slide) { engine.resetSlide() }
         .sensoryFeedback(.success, trigger: showSaved) { _, new in new }
         .sensoryFeedback(.impact(weight: .light), trigger: engine.points.count)
         .animation(.snappy, value: showSaved)
@@ -113,6 +117,7 @@ private struct LiDARSessionView: View {
 
     private var hint: String? {
         if let tracking = engine.trackingHint { return tracking }
+        if slide { return slideHint }
         switch mode {
         case .distance:
             if engine.isPlacingPoint { return "Hold steady…" }
@@ -131,6 +136,11 @@ private struct LiDARSessionView: View {
 
     @ViewBuilder
     private var readout: some View {
+        if slide { slideReadout } else { modeReadout }
+    }
+
+    @ViewBuilder
+    private var modeReadout: some View {
         switch mode {
         case .distance:
             ReadoutCard(title: "Two Points", value: engine.distanceResult.map { MeasureFormat.length($0, units: units) }) {
@@ -157,7 +167,12 @@ private struct LiDARSessionView: View {
         }
     }
 
+    @ViewBuilder
     private var controls: some View {
+        if slide { slideControls } else { modeControls }
+    }
+
+    private var modeControls: some View {
         HStack(spacing: 28) {
             HUDButton(title: "Reset", systemImage: "arrow.counterclockwise") { engine.resetReadings() }
 
@@ -182,7 +197,8 @@ private struct LiDARSessionView: View {
     }
 
     private var canSave: Bool {
-        switch mode {
+        if slide { return engine.slideEstimate != nil }
+        return switch mode {
         case .distance: engine.points.count == 2
         case .range: engine.centerDepth != nil
         case .box: engine.box != nil
@@ -192,6 +208,12 @@ private struct LiDARSessionView: View {
 
     private func save() {
         let values: [Double]
+        if slide {
+            guard let estimate = engine.slideEstimate else { return }
+            history.add(MeasurementRecord(mode: .range, values: [estimate.value]))
+            flashSaved()
+            return
+        }
         switch mode {
         case .distance:
             guard engine.points.count == 2, let d = engine.distanceResult else { return }
@@ -206,10 +228,71 @@ private struct LiDARSessionView: View {
             return
         }
         history.add(MeasurementRecord(mode: mode, values: values))
+        flashSaved()
+    }
+
+    private func flashSaved() {
         showSaved = true
         Task {
             try? await Task.sleep(for: .seconds(1.5))
             showSaved = false
+        }
+    }
+
+    // MARK: Slide
+
+    private var slideHint: String? {
+        if let message = engine.slideMessage { return message }
+        let cm = Int((engine.slideBaseline * 100).rounded())
+        switch engine.slideState {
+        case .idle:
+            return "Aim at a detailed target, tap Start, then slide iPhone sideways ~20 cm"
+        case .sliding:
+            return engine.slideBaseline < ARMeasureEngine.slideMinBaseline
+                ? "Slide sideways, keep the target in the crosshair · \(cm) cm"
+                : "Keep sliding slowly · \(cm) cm"
+        case .done:
+            return nil
+        }
+    }
+
+    private var slideReadout: some View {
+        ReadoutCard(title: "Slide · cameras only",
+                    value: engine.slideEstimate.map { MeasureFormat.length($0.value, units: units) },
+                    placeholder: engine.slideState == .sliding ? "Slide…" : "—") {
+            VStack(spacing: 2) {
+                if let estimate = engine.slideEstimate {
+                    Text(estimate.margin.map { "± \(MeasureFormat.length($0, units: units)) · 95% · \(estimate.count) views" }
+                         ?? "\(estimate.count) view")
+                        .monospacedDigit()
+                }
+                if let lidar = engine.slideLidarReference {
+                    Text(lidarComparison(lidar)).monospacedDigit()
+                } else {
+                    Text("Moving the iPhone gives a 15–25 cm baseline instead of the cameras' 1 cm")
+                }
+            }
+        }
+    }
+
+    private func lidarComparison(_ lidar: Double) -> String {
+        var text = "LiDAR " + MeasureFormat.length(lidar, units: units)
+        if let value = engine.slideEstimate?.value {
+            text += String(format: "  ·  %+.1f%%", (value - lidar) / lidar * 100)
+        }
+        return text
+    }
+
+    private var slideControls: some View {
+        HStack(spacing: 28) {
+            HUDButton(title: "Reset", systemImage: "arrow.counterclockwise") { engine.resetSlide() }
+            if engine.slideState == .sliding {
+                HUDButton(title: "Done", systemImage: "checkmark", prominent: true) { engine.finishSlide() }
+            } else {
+                HUDButton(title: "Start Slide", systemImage: "arrow.left.and.right", prominent: true) { engine.startSlide() }
+            }
+            HUDButton(title: "Save", systemImage: "square.and.arrow.down") { save() }
+                .disabled(!canSave)
         }
     }
 }

@@ -31,6 +31,31 @@ enum PixelBuffers {
         return values
     }
 
+    /// Luma (plane 0 of a YCbCr camera image) averaged over `factor` × `factor` blocks.
+    static func luma(_ buffer: CVPixelBuffer, factor: Int) -> GrayImage? {
+        CVPixelBufferLockBaseAddress(buffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
+        guard CVPixelBufferGetPlaneCount(buffer) >= 1, let base = CVPixelBufferGetBaseAddressOfPlane(buffer, 0) else {
+            return nil
+        }
+        let width = CVPixelBufferGetWidthOfPlane(buffer, 0), height = CVPixelBufferGetHeightOfPlane(buffer, 0)
+        let rowBytes = CVPixelBufferGetBytesPerRowOfPlane(buffer, 0)
+        let w = width / factor, h = height / factor
+        let scale = 1 / Float(factor * factor)
+        var pixels = [Float](repeating: 0, count: w * h)
+        for y in 0..<h {
+            for sy in 0..<factor {
+                let row = base.advanced(by: (y * factor + sy) * rowBytes).assumingMemoryBound(to: UInt8.self)
+                for x in 0..<w {
+                    var sum: Float = 0
+                    for sx in 0..<factor { sum += Float(row[x * factor + sx]) }
+                    pixels[y * w + x] += sum * scale
+                }
+            }
+        }
+        return GrayImage(width: w, height: h, pixels: pixels)
+    }
+
     /// Median depth in a square window at the image center, ignoring empty and low-confidence pixels.
     static func centerMedian(depth: [Float], width: Int, height: Int, confidence: [UInt8]? = nil,
                              minConfidence: UInt8 = 1, window: Int = 5) -> Double? {
